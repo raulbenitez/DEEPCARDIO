@@ -2,28 +2,14 @@ import cv2
 import os
 import sys
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from scipy.io import loadmat
-
-DATASETS_PATH = '../_datasets/deepcardio'
-IMAGE_ID = '170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium'
-IMAGE_FOLDER = os.path.join(DATASETS_PATH, IMAGE_ID)
-IMAGE_FILE_TEMPLATE = '170215_RyR-GFP30_RO_01_Serie2_z1{}_ch01.tif'
-MAT_PATH = '170215_RyR-GFP30_01_Serie2_Sparks.mat'
-
-def get_image_path(idx):
-    return os.path.join(IMAGE_FOLDER, IMAGE_FILE_TEMPLATE.format(str(idx).zfill(4)))
-
-def get_image_array(idx):
-    imagePath = get_image_path(idx)
-    return np.array(Image.open(imagePath))
-
-def get_spark_location(sparksDF, idx):
-    candidates = sparksDF.loc[(sparksDF.loc[:,'tIni'] <= idx) & (sparksDF.loc[:, 'tFin'] > idx), :]
-    return candidates.loc[:, ['x', 'y']]
+from deepcardio_utils import *
 
 if __name__=='__main__':
-    video_name = f'{IMAGE_ID}.avi'
+    normalize = '--normalize' in sys.argv[1:]
+    video_name = f"{IMAGE_ID}{'_norm' if normalize else ''}.avi"
 
     images = sorted([img for img in os.listdir(IMAGE_FOLDER) if img.endswith(".tif")])
     frame = cv2.imread(os.path.join(IMAGE_FOLDER, images[0]))
@@ -31,11 +17,16 @@ if __name__=='__main__':
 
     mat = loadmat(os.path.join(DATASETS_PATH, MAT_PATH))['xytspark']
     sparksDF = pd.DataFrame(mat, columns=['x','y','tIni','tFin'])
+    F0 = None
 
     video = cv2.VideoWriter(video_name, 0, 30, (width,height))
 
     for i, image in enumerate(images):
         im = cv2.imread(os.path.join(IMAGE_FOLDER, image))
+        if normalize:
+            if F0 is None:
+                F0, _, _ = get_f0_and_cellmask()
+            im = get_normalized_frame(im, F0)
         sparkLocations = get_spark_location(sparksDF, i)
         for i, sparkLocation in sparkLocations.iterrows():
             color = int(im.max()*2)
