@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from skimage.filters import threshold_otsu
+from sklearn import mixture
 
 DATASETS_PATH = '../_datasets/deepcardio'
 IMAGE_ID = '170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium'
@@ -62,3 +63,11 @@ def get_normalized_frame(im, F0, max=None):
         im_[:, :, 2] = ((im[:, :, 2]-F0)/F0 + 1)/mmax*255
         return im_
     return (im-F0)/F0
+
+def get_optimal_ncomponents_and_bic_gmm(data, nmin=1, nmax=10):
+    #calcula el BIC per trobar el número de gaussianes òptim
+    bic = []
+    for kG in np.arange(nmin,nmax+1):
+        gmm = mixture.GaussianMixture(n_components=kG).fit(data)
+        bic.append(gmm.bic(data)) #cada cop va afegint el bic amb kG+1, així ho tens tot en un vector i pots calcualr el mínim
+    return np.argmin(np.abs(bic))+nmin, min(np.abs(bic))
