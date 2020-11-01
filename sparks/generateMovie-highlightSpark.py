@@ -42,7 +42,7 @@ if __name__=='__main__':
             maxValue = np.array([0, 0, maxRValue]).reshape(-1,3)
             maxValueIdx = im_[mask, 2].argmax()
             isSparkCond = np.full(im_[mask].shape, False)
-            isSparkCond[k.labels_ == k.labels_[maxValueIdx], 2] = True
+            isSparkCond[k.labels_ == k.labels_[maxValueIdx], 1] = True
             im_[mask] = np.where(isSparkCond, maxRValue, im_[mask])
         maxRValue = im.max()
         conc_im = np.concatenate((im, np.full((1,im.shape[1], 3), maxRValue), im_))
