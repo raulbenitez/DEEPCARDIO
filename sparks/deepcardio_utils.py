@@ -70,4 +70,4 @@ def get_optimal_ncomponents_and_bic_gmm(data, nmin=1, nmax=10):
     for kG in np.arange(nmin,nmax+1):
         gmm = mixture.GaussianMixture(n_components=kG).fit(data)
         bic.append(gmm.bic(data)) #cada cop va afegint el bic amb kG+1, així ho tens tot en un vector i pots calcualr el mínim
-    return np.argmin(np.abs(bic))+nmin, min(np.abs(bic)), 3
+    return np.argmin(np.abs(bic))+nmin, min(np.abs(bic))
