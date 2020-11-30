@@ -6,7 +6,21 @@ import matplotlib.pyplot as plt
 
 from scipy.io import loadmat
 from sklearn.cluster import KMeans
+from skimage.filters import gaussian
 from deepcardio_utils import *
+
+def get_spark_visibility_frame_mask2(sparkIni, sparkFin, sparkX, sparkY):
+    nCompList = []
+    for j, idx in enumerate(range(sparkIni, sparkFin)):
+        im = cv2.imread(get_image_path(idx))
+        imOutput = im.copy()
+        imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
+
+        mask = get_mask(im.shape[0], im.shape[1], sparkX, sparkY, 20)
+        nComp, bic = get_optimal_ncomponents_and_bic_gmm(imFiltered[mask].reshape(-1,3))
+        nCompList.append(nComp)
+    nCompList = np.array(nCompList)
+    return np.logical_or((nCompList == 2), (nCompList == 3))
 
 if __name__=='__main__':
     normalize = '--normalize' in sys.argv[1:]
@@ -20,7 +34,7 @@ if __name__=='__main__':
     sparksDF = pd.DataFrame(mat, columns=['x','y','tIni','tFin'])
     F0 = None
 
-    video = cv2.VideoWriter(video_name, 0, 30, (width,height*2+1))
+    video = cv2.VideoWriter(video_name, 0, 30, (width,height*3+2))
 
     for i, image in enumerate(images):
         im = cv2.imread(os.path.join(IMAGE_FOLDER, image))
@@ -29,23 +43,34 @@ if __name__=='__main__':
                 F0, _, _ = get_f0_and_cellmask()
             im = get_normalized_frame(im, F0)
 
-        im_ = im.copy()
+        imOutput = im.copy()
+        imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
         sparkLocations = get_spark_location(sparksDF, i)
         for i, sparkLocation in sparkLocations.iterrows():
-            color = int(im.max()*2)
-            cv2.circle(im, (sparkLocation['x'], sparkLocation['y']), 20, color, thickness=1, lineType=8, shift=0)
+            # sparkVisibilityMask = get_spark_visibility_frame_mask2(sparkLocations.loc[0, 'tIni'], sparkLocations.loc[0, 'tFin'], sparkLocations.loc[0, 'x'], sparkLocations.loc[0, 'y'])
 
             mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
+            nComp, bic = get_optimal_ncomponents_and_bic_gmm(imFiltered[mask].reshape(-1,3))
 
-            k = KMeans(n_clusters=3).fit(im_[mask].reshape(-1,3))
-            maxRValue = im_[mask,2].max()
-            maxValue = np.array([0, 0, maxRValue]).reshape(-1,3)
-            maxValueIdx = im_[mask, 2].argmax()
-            isSparkCond = np.full(im_[mask].shape, False)
-            isSparkCond[k.labels_ == k.labels_[maxValueIdx], 1] = True
-            im_[mask] = np.where(isSparkCond, maxRValue, im_[mask])
+            # visibilityEnabled
+            if (nComp == 2) or (nComp == 3):
+                gmm = mixture.GaussianMixture(n_components=nComp).fit(imFiltered[mask].reshape(-1,3))
+                lab = gmm.predict(imFiltered[mask].reshape(-1,3))
+                probs = gmm.predict_proba(imFiltered[mask].reshape(-1,3))
+                mixtIdx = gmm.means_[:, 2].argmax()
+
+                maxRValue = im[mask,2].max()
+                maxValue = np.array([0, 0, maxRValue]).reshape(-1,3)
+                maxValueIdx = im[mask, 2].argmax()
+                isSparkCond = np.full(imOutput[mask].shape, False)
+                isSparkCond[lab == mixtIdx, 1] = True # probs[:,mixtIdx]>.8 (amb nCom fixat (2/3)) vs lab == mixtIdx (automatic nComp)
+                imOutput[mask] = np.where(isSparkCond, maxRValue, imOutput[mask])
+
+            color = int(im.max()*2)
+            cv2.circle(imOutput, (sparkLocation['x'], sparkLocation['y']), 20, color, thickness=1, lineType=8, shift=0)
+
         maxRValue = im.max()
-        conc_im = np.concatenate((im, np.full((1,im.shape[1], 3), maxRValue), im_))
+        conc_im = np.concatenate((im, np.full((1,im.shape[1], 3), maxRValue), imOutput, np.full((1,im.shape[1], 3), maxRValue), imFiltered))
         video.write(conc_im)
 
     cv2.destroyAllWindows()
