@@ -46,7 +46,7 @@ if __name__=='__main__':
         imOutput = im.copy()
         imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
         sparkLocations = get_spark_location(sparksDF, i)
-        for i, sparkLocation in sparkLocations.iterrows():
+        for _, sparkLocation in sparkLocations.iterrows():
             # sparkVisibilityMask = get_spark_visibility_frame_mask2(sparkLocations.loc[0, 'tIni'], sparkLocations.loc[0, 'tFin'], sparkLocations.loc[0, 'x'], sparkLocations.loc[0, 'y'])
 
             mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
