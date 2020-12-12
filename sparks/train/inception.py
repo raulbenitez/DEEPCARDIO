@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 
 import keras
 from keras.layers.core import Layer
@@ -24,27 +25,31 @@ from sklearn.model_selection import train_test_split
 from deepcardio_utils import IMAGE_FOLDER, get_frame_wise_classification
 
 
-def load_data():
+def load_data(classesFromFile=False):
     imagePaths = sorted([img for img in os.listdir(IMAGE_FOLDER) if img.endswith(".tif")])
     imageIdxs = list(range(len(imagePaths)))
     images = np.array([np.concatenate((cv2.imread(os.path.join(IMAGE_FOLDER, imagePaths[i])),
                                        np.full((216, 256, 3), 0))) for i in imageIdxs])
-    classes = get_frame_wise_classification(imageIdxs)
 
-    # Split train / test data
-    X_train, X_valid, Y_train, Y_valid = train_test_split(images, classes, test_size=0.2, random_state=1)
+    classesPath = os.path.join(IMAGE_FOLDER, 'class.csv')
+    if not classesFromFile:
+        classes = get_frame_wise_classification(imageIdxs)
+        np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
+    else:
+        classes = pd.read_csv(classesPath, header=None).astype(bool)
 
     # Transform targets to keras compatible format
     num_classes = 2
-    Y_train = np_utils.to_categorical(Y_train, num_classes)
-    Y_valid = np_utils.to_categorical(Y_valid, num_classes)
-
-    X_train = X_train.astype('float32')
-    X_valid = X_valid.astype('float32')
+    Y = np_utils.to_categorical(classes, num_classes)
 
     # preprocess data
-    X_train = X_train / 255.0
-    X_valid = X_valid / 255.0
+    X = images.astype('float32')
+    X = X / 255.0
+
+    # Split train / test data
+    X_train, X_valid, Y_train, Y_valid = train_test_split(X, Y, test_size=0.2, random_state=1)
+    print(f"Prop of sparks in train dataset: {round(Y_train.sum(axis=0)[1]/Y_train.shape[0]*100, 2)}, "
+          f"and in validation dataset: {round(Y_valid.sum(axis=0)[1]/Y_valid.shape[0]*100, 2)}")
 
     return X_train, Y_train, X_valid, Y_valid
 
@@ -146,7 +151,7 @@ def build_model(h, w, nc):
     return model
 
 if __name__=='__main__':
-    X_train, X_valid, Y_train, Y_valid = load_data()
+    X_train, X_valid, Y_train, Y_valid = load_data(classesFromFile=True)
     model = keras.applications.InceptionV3(include_top=True, weights=None, classes=2)
     model.summary()
     model = build_model(*X_train[0].shape)

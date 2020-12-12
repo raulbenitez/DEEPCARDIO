@@ -143,7 +143,6 @@ def get_gmm_from_all_sparks():
             if (nComp == 2) or (nComp == 3):
                 fullSparkPixelsList.append(imFiltered[mask].reshape(-1, 3))
     fullSparkPixels = np.concatenate(tuple(fullSparkPixelsList))
-    del fullSparkPixelsList
     nComp, bic = get_optimal_ncomponents_and_bic_gmm(fullSparkPixels)
     gmm = mixture.GaussianMixture(n_components=nComp).fit(fullSparkPixels)
     np.savetxt('fullSparkPixels.csv', fullSparkPixels, delimiter=";")
