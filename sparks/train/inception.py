@@ -2,10 +2,8 @@ import os
 import pandas as pd
 
 import keras
-from keras.layers.core import Layer
-import keras.backend as K
-import tensorflow as tf
 
+import tensorflow as tf
 from keras.models import Model
 from keras.layers import Conv2D, MaxPool2D,  \
     Dropout, Dense, Input, concatenate,      \
@@ -14,24 +12,27 @@ from keras.layers import Conv2D, MaxPool2D,  \
 
 import cv2
 import numpy as np
-from keras import backend as K
 from keras.utils import np_utils
 
-import math
-from keras.optimizers import SGD
-from keras.callbacks import LearningRateScheduler
 from sklearn.model_selection import train_test_split
 
 from deepcardio_utils import IMAGE_FOLDER, get_frame_wise_classification
 
 
-def load_data(classesFromFile=False):
-    imagePaths = sorted([img for img in os.listdir(IMAGE_FOLDER) if img.endswith(".tif")])
-    imageIdxs = list(range(len(imagePaths)))
-    images = np.array([np.concatenate((cv2.imread(os.path.join(IMAGE_FOLDER, imagePaths[i])),
-                                       np.full((216, 256, 3), 0))) for i in imageIdxs])
+def load_data(classesFromFile=False, imageFolder=IMAGE_FOLDER):
+    # from images
+    # imagePaths = sorted([img for img in os.listdir(imageFolder) if img.endswith(".tif")])
+    # imageIdxs = list(range(len(imagePaths)))
+    # images = np.array([cv2.imread(os.path.join(imageFolder, imagePaths[i])) for i in imageIdxs])
+    # np.save(IMAGE_FOLDER+'/full_images.npy', images)
 
-    classesPath = os.path.join(IMAGE_FOLDER, 'class.csv')
+    images = np.load(os.path.join(imageFolder, 'full_images.npy'))
+    # reshape for cnn input
+    images = np.array([np.concatenate((im, np.full((216, 256, 3), 0))) for im in images])
+
+    imageIdxs = list(range(images.shape[0]))
+
+    classesPath = os.path.join(imageFolder, 'class.csv')
     if not classesFromFile:
         classes = get_frame_wise_classification(imageIdxs)
         np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
@@ -150,10 +151,49 @@ def build_model(h, w, nc):
     model = Model(input_layer, [x, x1, x2], name='inception_v1')
     return model
 
+def old_metric_spark_recall(y_true, y_pred):
+    realSparks = tf.math.argmax(y_true, axis=1) == 1
+    predSparks = tf.math.argmax(y_pred, axis=1) == 1
+    wellPredSparks = realSparks & predSparks
+    return tf.math.reduce_sum(tf.cast(wellPredSparks, np.float32)) / tf.math.reduce_sum(tf.cast(realSparks, np.float32))
+
+def metric_spark_recall(y_true, y_pred):
+    # metrica ponderada 0.2 accuracy + 0.8 recall (classes spark exclusivament), sempre que hi hagi sparks, sino acc
+    realSparks = tf.math.argmax(y_true, axis=1) == 1
+    predSparks = tf.math.argmax(y_pred, axis=1) == 1
+    wellPredSparks = realSparks & predSparks
+    wellPredNoSparks = ~realSparks & ~predSparks
+
+    realSparksCount = tf.math.reduce_sum(tf.cast(realSparks, np.float32))
+    wellPredSparksCount = tf.math.reduce_sum(tf.cast(wellPredSparks, np.float32))
+    wellPredCount = tf.math.reduce_sum(tf.cast(wellPredNoSparks, np.float32)) + wellPredSparksCount
+
+    recall = wellPredSparksCount / realSparksCount
+    accuracy = wellPredCount / tf.cast(tf.shape(y_true)[0], np.float32)
+
+    # ret =  recall * 0.8 + accuracy * 0.2if realSparksCount > 0 else accuracy
+    return tf.cond(tf.greater(realSparksCount, 0),
+                   lambda: recall * 0.8 + accuracy * 0.2,
+                   lambda: accuracy)
+
 if __name__=='__main__':
-    X_train, X_valid, Y_train, Y_valid = load_data(classesFromFile=True)
-    model = keras.applications.InceptionV3(include_top=True, weights=None, classes=2)
-    model.summary()
-    model = build_model(*X_train[0].shape)
-    model.summary()
+    X_train, Y_train, X_valid, Y_valid = load_data(classesFromFile=True)
+
+    # Inception V3
+    modelv3 = keras.applications.InceptionV3(include_top=True, weights=None, classes=2, input_shape=X_train[0].shape)
+    modelv3.summary()
+
+    batch_size = 32
+    epochs = 25
+
+    opt = keras.optimizers.RMSprop(learning_rate=0.0001, decay=1e-6)
+    modelv3.compile(loss='categorical_crossentropy', optimizer=opt, metrics=[metric_spark_recall, 'accuracy'])
+
+    modelv3.fit(X_train, Y_train, batch_size=batch_size, epochs=epochs, validation_data=(X_valid, Y_valid), shuffle=True)
+
+    modelv3.save('train/inceptionv32.h5')
+
+    # # Inception V1 (manual)
+    modelv1 = build_model(*X_train[0].shape)
+    modelv1.summary()
     pass
