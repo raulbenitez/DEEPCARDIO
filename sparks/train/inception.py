@@ -28,7 +28,8 @@ def load_data(classesFromFile=False, imageFolder=IMAGE_FOLDER):
 
     images = np.load(os.path.join(imageFolder, 'full_images.npy'))
     # reshape for cnn input
-    images = np.array([np.concatenate((im, np.full((216, 256, 3), 0))) for im in images])
+    minsize = 75
+    images = np.array([np.concatenate((im, np.full((minsize-im.shape[0], 256, 3), 0))) for im in images])
 
     imageIdxs = list(range(images.shape[0]))
 
@@ -157,7 +158,7 @@ def old_metric_spark_recall(y_true, y_pred):
     wellPredSparks = realSparks & predSparks
     return tf.math.reduce_sum(tf.cast(wellPredSparks, np.float32)) / tf.math.reduce_sum(tf.cast(realSparks, np.float32))
 
-def metric_spark_recall(y_true, y_pred):
+def metric_08recall_02accuracy(y_true, y_pred):
     # metrica ponderada 0.2 accuracy + 0.8 recall (classes spark exclusivament), sempre que hi hagi sparks, sino acc
     realSparks = tf.math.argmax(y_true, axis=1) == 1
     predSparks = tf.math.argmax(y_pred, axis=1) == 1
@@ -175,6 +176,35 @@ def metric_spark_recall(y_true, y_pred):
     return tf.cond(tf.greater(realSparksCount, 0),
                    lambda: recall * 0.8 + accuracy * 0.2,
                    lambda: accuracy)
+
+def wrong_sparks_sigmoid(x):
+    return 2/(1+tf.math.exp(-5*x))-1
+
+def metric_09recall_01sigmoid_wrong_spark(y_true, y_pred):
+    # metrica ponderada 0.2 accuracy + 0.8 recall (classes spark exclusivament), sempre que hi hagi sparks, sino acc
+    realSparks = tf.math.argmax(y_true, axis=1) == 1
+    predSparks = tf.math.argmax(y_pred, axis=1) == 1
+    wellPredSparks = realSparks & predSparks
+    wellPredNoSparks = ~realSparks & ~predSparks
+    wrongPredSparks = ~realSparks & predSparks
+
+    totalElementsCount = tf.cast(tf.shape(y_true)[0], np.float32)
+    realSparksCount = tf.math.reduce_sum(tf.cast(realSparks, np.float32))
+    wellPredSparksCount = tf.math.reduce_sum(tf.cast(wellPredSparks, np.float32))
+    wellPredCount = tf.math.reduce_sum(tf.cast(wellPredNoSparks, np.float32)) + wellPredSparksCount
+    wrongPredSparksCount = tf.math.reduce_sum(tf.cast(wrongPredSparks, np.float32))
+    realNonSparksCount = tf.math.reduce_sum(tf.cast(~realSparks, np.float32))
+
+    recall = wellPredSparksCount / realSparksCount
+    accuracy = wellPredCount / totalElementsCount
+    wrongSparksMetricAux = wrongPredSparksCount / realNonSparksCount
+    wrongSparksMetric = 1-wrong_sparks_sigmoid(wrongSparksMetricAux)
+
+
+    # ret =  recall * 0.8 + accuracy * 0.2if realSparksCount > 0 else accuracy
+    return tf.cond(tf.greater(realSparksCount, 0),
+                   lambda: recall * 0.9 + wrongSparksMetric * 0.1,
+                   lambda: wrongSparksMetric)
 
 if __name__=='__main__':
     X_train, Y_train, X_valid, Y_valid = load_data(classesFromFile=True)
