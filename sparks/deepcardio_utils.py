@@ -1,4 +1,6 @@
 import os
+import sys
+
 import cv2
 import numpy as np
 import pandas as pd
@@ -14,6 +16,76 @@ IMAGE_FILE_TEMPLATE = '170215_RyR-GFP30_RO_01_Serie2_z1{}_ch01.tif'
 MAT_PATH = '170215_RyR-GFP30_01_Serie2_Sparks.mat'
 
 BACKGROUND_MAX_VALUE = 0
+
+class ImageReader:
+    def __init__(self) -> None:
+        super().__init__()
+        args = sys.argv[1:]
+        imageId = args[args.index('--imageid')+1] if '--imageid' in args else IMAGE_ID
+
+        self._imageId = imageId
+        self._imageFolderPath = os.path.join(DATASETS_PATH, self._imageId)
+        self._images_names = sorted([img for img in os.listdir(self._imageFolderPath) if img.endswith(".tif")])
+        self._matFile = None
+
+    def get_image_folder(self):
+        return self._imageFolderPath
+
+    def get_image_id(self):
+        return self._imageId
+
+    def get_shape(self):
+        frame = cv2.imread(os.path.join(self._imageFolderPath, self._images_names[0]))
+        return frame.shape
+
+    def get_mat_file(self):
+        if self._matFile:
+            return self._matFile
+        matFiles = [img for img in os.listdir(self._imageFolderPath) if img.endswith(".mat")]
+        csvFiles = [img for img in os.listdir(self._imageFolderPath) if img.endswith(".csv") and img != 'class.csv']
+        assert (len(matFiles)+len(csvFiles))==1, 'It is only possible to have sparks either in matlab form or csv form.'
+
+        self._matFile = matFiles[0] if len(matFiles) else csvFiles[0]
+        return self._matFile
+
+    def get_sparks_df(self):
+        matFile = self.get_mat_file()
+        matFilePath = os.path.join(self._imageFolderPath, matFile)
+        if matFile.endswith('.mat'):
+            mat = loadmat(matFilePath)['xytspark']
+            sparksDF = pd.DataFrame(mat, columns=['x', 'y', 'tIni', 'tFin'])
+        else: # csv
+            sparksDF = pd.read_csv(matFilePath, sep=',')
+            sparksDF.columns = ['x', 'y', 'tIni', 'tFin']
+
+        return sparksDF
+
+    def get_images_names(self):
+        return self._images_names
+
+    def create_npy_file(self):
+        # from images
+        imagePaths = sorted([img for img in os.listdir(self._imageFolderPath) if img.endswith(".tif")])
+        imageIdxs = list(range(len(imagePaths)))
+        images = np.array([cv2.imread(os.path.join(self._imageFolderPath, imagePaths[i])) for i in imageIdxs])
+        np.save(self._imageFolderPath+'/full_images.npy', images)
+
+    def get_full_images(self, gaussianFilter=False):
+        if not len([img for img in os.listdir(self._imageFolderPath) if img.endswith(".npy")]):
+            self.create_npy_file()
+        images = np.load(os.path.join(self._imageFolderPath, 'full_images.npy'))
+
+        if gaussianFilter:
+            images = [gaussian(im, sigma=1, multichannel=True, preserve_range=True).astype('uint8') for im in images]
+
+        return images
+
+    def get_full_padded_images(self, minsize=75):
+        images = self.get_full_images()
+        height, width, layers = self.get_shape()
+        # reshape for cnn input
+        return np.array(
+            [np.concatenate((im, np.full((minsize - im.shape[0], width, layers), 0))).astype('uint8') for im in images])
 
 def get_image_path(idx):
     return os.path.join(IMAGE_FOLDER, IMAGE_FILE_TEMPLATE.format(str(idx).zfill(4)))

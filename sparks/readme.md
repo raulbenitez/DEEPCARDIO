@@ -5,9 +5,13 @@ explore.ipynb - Jupyter where different strategies are explored.
 fullSparkPixels.czsv - It is the concatenation of all pixels in all frames of 170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium movie. The purpose was to build a unique gmm with all pixels. Not very useful at the end.  
 
 ### train/  
-inception.py - Build and train inceptionv3 neural networks.
+inception.py - Tools for training inception and loading data.
+inception.ipynb - Build and train inceptionv3 neural networks.
 inception_test.ipynb - Display different metrics for each trained model (confusion matrix, recalls...).
 imagenet_inception.ipynb - Transfer learning with imagenet.
+
+### pred/
+makeLabeledMovie.py - Generates movie labeling frames where a spark is predicted.
 
 ### Generate movies from frames in ../_datasets/deepcardio/170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium  
 makeMovie.py - Regular movie.  

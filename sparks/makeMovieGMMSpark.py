@@ -23,21 +23,20 @@ def get_spark_visibility_frame_mask2(sparkIni, sparkFin, sparkX, sparkY):
     return np.logical_or((nCompList == 2), (nCompList == 3))
 
 if __name__=='__main__':
-    normalize = '--normalize' in sys.argv[1:]
-    video_name = f"{IMAGE_ID}{'_norm' if normalize else ''}.avi"
+    args = sys.argv[1:]
+    normalize = '--normalize' in args
 
-    images = sorted([img for img in os.listdir(IMAGE_FOLDER) if img.endswith(".tif")])
-    frame = cv2.imread(os.path.join(IMAGE_FOLDER, images[0]))
-    height, width, layers = frame.shape
+    imageReader = ImageReader()
+    video_name = f"{imageReader.get_image_id()}{'_norm' if normalize else ''}.avi"
+    height, width, layers = imageReader.get_shape()
 
-    mat = loadmat(os.path.join(DATASETS_PATH, MAT_PATH))['xytspark']
-    sparksDF = pd.DataFrame(mat, columns=['x','y','tIni','tFin'])
+    sparksDF = imageReader.get_sparks_df()
     F0 = None
 
     video = cv2.VideoWriter(video_name, 0, 30, (width,height*3+2))
 
-    for i, image in enumerate(images):
-        im = cv2.imread(os.path.join(IMAGE_FOLDER, image))
+    for i, image in enumerate(imageReader.get_images_names()):
+        im = cv2.imread(os.path.join(imageReader.get_image_folder(), image))
         if normalize:
             if F0 is None:
                 F0, _, _ = get_f0_and_cellmask()
