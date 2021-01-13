@@ -9,37 +9,16 @@ from skimage.filters import gaussian
 from keras.utils import np_utils
 from sklearn.model_selection import train_test_split
 
-from deepcardio_utils import IMAGE_FOLDER, get_frame_wise_classification
+from deepcardio_utils import IMAGE_FOLDER, get_frame_wise_classification, IMAGE_ID, DATASETS_PATH, ImageReader
 
 
-def load_data(classesFromFile=False, imageFolder=IMAGE_FOLDER, gaussianFilter=True):
-    # from images
-    # imagePaths = sorted([img for img in os.listdir(imageFolder) if img.endswith(".tif")])
-    # imageIdxs = list(range(len(imagePaths)))
-    # images = np.array([cv2.imread(os.path.join(imageFolder, imagePaths[i])) for i in imageIdxs])
-    # np.save(IMAGE_FOLDER+'/full_images.npy', images)
-
-    images = np.load(os.path.join(imageFolder, 'full_images.npy'))
-
-    if gaussianFilter:
-        images = [gaussian(im, sigma=1, multichannel=True, preserve_range=True).astype('uint8') for im in images]
-
-    # plt.figure(figsize=(20, 10))
-    # plt.imshow(cv2.cvtColor(images[0], cv2.COLOR_BGR2RGB))
-    # plt.show()
-
-    # reshape for cnn input
-    minsize = 75
-    images = np.array([np.concatenate((im, np.full((minsize-im.shape[0], 256, 3), 0))).astype('uint8') for im in images])
+def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PATH, gaussianFilter=False):
+    imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
+    images = imageReader.get_full_padded_images(gaussianFilter=gaussianFilter)
 
     imageIdxs = list(range(images.shape[0]))
 
-    classesPath = os.path.join(imageFolder, 'class.csv')
-    if not classesFromFile:
-        classes = get_frame_wise_classification(imageIdxs)
-        np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
-    else:
-        classes = pd.read_csv(classesPath, header=None).astype(bool)
+    classes = imageReader.get_frame_wise_classification(imageIdxs, classesFromFile=classesFromFile)
 
     # Transform targets to keras compatible format
     num_classes = 2
@@ -55,10 +34,6 @@ def load_data(classesFromFile=False, imageFolder=IMAGE_FOLDER, gaussianFilter=Tr
           f"and in validation dataset: {round(Y_valid.sum(axis=0)[1]/Y_valid.shape[0]*100, 2)}")
 
     return X_train, Y_train, X_valid, Y_valid
-
-    # Resize training images
-    X_train = np.array([cv2.resize(img, (img_rows, img_cols)) for img in X_train[:, :, :, :]])
-    X_valid = np.array([cv2.resize(img, (img_rows, img_cols)) for img in X_valid[:, :, :, :]])
 
 
 def old_metric_spark_recall(y_true, y_pred):

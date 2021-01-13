@@ -18,14 +18,16 @@ MAT_PATH = '170215_RyR-GFP30_01_Serie2_Sparks.mat'
 BACKGROUND_MAX_VALUE = 0
 
 class ImageReader:
-    def __init__(self) -> None:
+    def __init__(self, imageId=None, datasetsPath=None) -> None:
         super().__init__()
-        args = sys.argv[1:]
-        imageId = args[args.index('--imageid')+1] if '--imageid' in args else IMAGE_ID
 
+        if not imageId:
+            args = sys.argv[1:]
+            imageId = args[args.index('--imageid')+1] if '--imageid' in args else IMAGE_ID
+        self._datasetsPath = datasetsPath if datasetsPath else DATASETS_PATH
         self._imageId = imageId
-        self._imageFolderPath = os.path.join(DATASETS_PATH, self._imageId)
-        self._images_names = sorted([img for img in os.listdir(self._imageFolderPath) if img.endswith(".tif")])
+        self._imageFolderPath = os.path.join(self._datasetsPath, self._imageId)
+        self._imagesNames = sorted([img for img in os.listdir(self._imageFolderPath) if img.endswith(".tif")])
         self._matFile = None
 
     def get_image_folder(self):
@@ -34,8 +36,11 @@ class ImageReader:
     def get_image_id(self):
         return self._imageId
 
+    def get_image_path(self, idx):
+        return os.path.join(self._imageFolderPath, self._imagesNames[idx])
+
     def get_shape(self):
-        frame = cv2.imread(os.path.join(self._imageFolderPath, self._images_names[0]))
+        frame = cv2.imread(os.path.join(self._imageFolderPath, self._imagesNames[0]))
         return frame.shape
 
     def get_mat_file(self):
@@ -61,7 +66,7 @@ class ImageReader:
         return sparksDF
 
     def get_images_names(self):
-        return self._images_names
+        return self._imagesNames
 
     def create_npy_file(self):
         # from images
@@ -80,12 +85,36 @@ class ImageReader:
 
         return images
 
-    def get_full_padded_images(self, minsize=75):
-        images = self.get_full_images()
+    def get_full_padded_images(self, minsize=75, gaussianFilter=False):
+        images = self.get_full_images(gaussianFilter=gaussianFilter)
         height, width, layers = self.get_shape()
         # reshape for cnn input
         return np.array(
             [np.concatenate((im, np.full((minsize - im.shape[0], width, layers), 0))).astype('uint8') for im in images])
+
+    def get_frame_wise_classification(self, frameList=None, classesFromFile=False, sparksDF=None):
+        if not frameList:
+            frameList=list(range(len(self._imagesNames)))
+        classesPath = os.path.join(self.get_image_folder(), 'class.csv')
+        if classesFromFile:
+            return pd.read_csv(classesPath, header=None, sep=';').loc[frameList].squeeze().to_numpy()
+
+        if not sparksDF:
+            sparksDF = self.get_sparks_df()
+
+        classes = np.full((len(frameList), 1), False)
+
+        for i, idx in enumerate(frameList):
+            im = cv2.imread(self.get_image_path(idx))
+            imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
+
+            sparkLocationsDF = get_spark_location(sparksDF, idx)
+            for _, sparkLocation in sparkLocationsDF.iterrows():
+                mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
+                classes[i] = classes[i] or is_spark_visible(imFiltered, mask)
+
+        np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
+        return classes
 
 def get_image_path(idx):
     return os.path.join(IMAGE_FOLDER, IMAGE_FILE_TEMPLATE.format(str(idx).zfill(4)))
