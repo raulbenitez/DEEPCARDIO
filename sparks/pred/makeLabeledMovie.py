@@ -16,7 +16,7 @@ if __name__=='__main__':
     X = X.astype('float32')
     X = X / 255.0
 
-    Y = imageReader.get_frame_wise_classification(classesFromFile=True)
+    Y = imageReader.get_frame_wise_class_gmm(classesFromFile=True)
     sparksDF = imageReader.get_sparks_df()
 
     inceptionv3 = keras.applications.InceptionV3(include_top=True, weights=None, classes=2, input_shape=X[0].shape)

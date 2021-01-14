@@ -12,13 +12,16 @@ from sklearn.model_selection import train_test_split
 from deepcardio_utils import IMAGE_FOLDER, get_frame_wise_classification, IMAGE_ID, DATASETS_PATH, ImageReader
 
 
-def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PATH, gaussianFilter=False):
+def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PATH, gaussianFilter=False, windowedClass=False):
     imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
     images = imageReader.get_full_padded_images(gaussianFilter=gaussianFilter)
 
     imageIdxs = list(range(images.shape[0]))
 
-    classes = imageReader.get_frame_wise_classification(imageIdxs, classesFromFile=classesFromFile)
+    if not windowedClass:
+        classes = imageReader.get_frame_wise_class_gmm(imageIdxs, classesFromFile=classesFromFile)
+    else:
+        classes = imageReader.get_frame_wise_class_windowed(imageIdxs, classesFromFile=classesFromFile)
 
     # Transform targets to keras compatible format
     num_classes = 2

@@ -47,7 +47,7 @@ class ImageReader:
         if self._matFile:
             return self._matFile
         matFiles = [img for img in os.listdir(self._imageFolderPath) if img.endswith(".mat")]
-        csvFiles = [img for img in os.listdir(self._imageFolderPath) if img.endswith(".csv") and img != 'class.csv']
+        csvFiles = [img for img in os.listdir(self._imageFolderPath) if img.endswith(".csv") and not img.startswith('class')]
         assert (len(matFiles)+len(csvFiles))==1, 'It is only possible to have sparks either in matlab form or csv form.'
 
         self._matFile = matFiles[0] if len(matFiles) else csvFiles[0]
@@ -92,7 +92,7 @@ class ImageReader:
         return np.array(
             [np.concatenate((im, np.full((minsize - im.shape[0], width, layers), 0))).astype('uint8') for im in images])
 
-    def get_frame_wise_classification(self, frameList=None, classesFromFile=False, sparksDF=None):
+    def get_frame_wise_class_gmm(self, frameList=None, classesFromFile=False, sparksDF=None):
         if not frameList:
             frameList=list(range(len(self._imagesNames)))
         classesPath = os.path.join(self.get_image_folder(), 'class.csv')
@@ -111,8 +111,47 @@ class ImageReader:
             sparkLocationsDF = get_spark_location(sparksDF, idx)
             for _, sparkLocation in sparkLocationsDF.iterrows():
                 mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
-                classes[i] = classes[i] or is_spark_visible(imFiltered, mask)
+                classes[i] = classes[i] or is_spark_visible_gmm(imFiltered, mask)
 
+        np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
+        return classes
+
+    def get_frame_wise_class_windowed(self, frameList=None, classesFromFile=False, sparksDF=None):
+        if not frameList:
+            frameList=list(range(len(self._imagesNames)))
+        classesPath = os.path.join(self.get_image_folder(), 'class_win.csv')
+        if classesFromFile:
+            return pd.read_csv(classesPath, header=None, sep=';').loc[frameList].squeeze().to_numpy()
+
+        if not sparksDF:
+            sparksDF = self.get_sparks_df()
+
+        sparksDF.loc[:, 'maxIdx'] = pd.Series(np.nan, index=sparksDF.index)
+
+        for sidx, spark in sparksDF.iterrows():
+            meansList = []
+            for idx in range(int(spark['tIni']), int(spark['tFin'])):
+                im = cv2.imread(self.get_image_path(idx))
+                imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
+                mask = get_mask(im.shape[0], im.shape[1], spark['x'], spark['y'], 20)
+                meansList.append(imFiltered[mask].reshape(-1,1).mean())
+            sparksDF.loc[sidx, 'maxIdx'] = spark['tIni']+np.argmax(meansList)
+        sparksDF = sparksDF.astype({'maxIdx': int})
+
+        classes = np.full((len(frameList),), False)
+
+        for i, idx in enumerate(frameList):
+            im = cv2.imread(self.get_image_path(idx))
+            imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
+
+            sparkLocationsDF = get_spark_location(sparksDF, idx)
+            for _, sparkLocation in sparkLocationsDF.iterrows():
+                mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
+                SPARK_WINDOW = 3
+                classes[i] = classes[i] or (idx == sparkLocation['maxIdx']) or \
+                             ((idx-3 <= sparkLocation['maxIdx'] <= idx+3) and is_spark_visible_gmm(imFiltered, mask))
+
+        classes = classes.astype(int)
         np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
         return classes
 
@@ -130,7 +169,7 @@ def get_spark_location_(sparksDF, idx):
 
 def get_spark_location(sparksDF, idx):
     candidates = sparksDF.loc[(sparksDF.loc[:,'tIni'] <= idx) & (sparksDF.loc[:, 'tFin'] > idx), :]
-    return candidates.loc[:, ['x', 'y']]
+    return candidates
 
 def get_mask(h, w, centerx, centery, radius):
     y, x = np.ogrid[:h, :w]
@@ -175,7 +214,7 @@ def get_optimal_ncomponents_and_bic_gmm(data, nmin=1, nmax=10):
         bic.append(gmm.bic(data)) #cada cop va afegint el bic amb kG+1, així ho tens tot en un vector i pots calcualr el mínim
     return np.argmin(bic)+nmin, min(bic)
 
-def is_spark_visible(imFiltered, mask):
+def is_spark_visible_gmm(imFiltered, mask):
     nComp, bic = get_optimal_ncomponents_and_bic_gmm(imFiltered[mask].reshape(-1, imFiltered.shape[-1]))
     return nComp == 2 or nComp == 3
 
@@ -196,7 +235,7 @@ def get_pixel_wise_classification(frameList, sparksDF=None):
         for _, sparkLocation in sparkLocationsDF.iterrows():
             mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
 
-            if is_spark_visible(imFiltered, mask):
+            if is_spark_visible_gmm(imFiltered, mask):
                 aux = imFiltered[mask].reshape(-1, imFiltered.shape[-1])
                 nComp, bic = get_optimal_ncomponents_and_bic_gmm(aux)
                 gmm = mixture.GaussianMixture(n_components=nComp).fit(aux)
@@ -223,7 +262,7 @@ def get_frame_wise_classification(frameList, sparksDF=None):
         sparkLocationsDF = get_spark_location(sparksDF, idx)
         for _, sparkLocation in sparkLocationsDF.iterrows():
             mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
-            classes[i] = classes[i] or is_spark_visible(imFiltered, mask)
+            classes[i] = classes[i] or is_spark_visible_gmm(imFiltered, mask)
 
     return classes
 
