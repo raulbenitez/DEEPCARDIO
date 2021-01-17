@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from scipy.io import loadmat
+from scipy.stats import norm
 from skimage.filters import threshold_otsu, gaussian
 from sklearn import mixture
 
@@ -29,6 +30,9 @@ class ImageReader:
         self._imageFolderPath = os.path.join(self._datasetsPath, self._imageId)
         self._imagesNames = sorted([img for img in os.listdir(self._imageFolderPath) if img.endswith(".tif")])
         self._matFile = None
+
+    def get_datasets_path(self):
+        return self._datasetsPath
 
     def get_image_folder(self):
         return self._imageFolderPath
@@ -155,6 +159,76 @@ class ImageReader:
         np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
         return classes
 
+    def get_cellmask(self, images=None):
+        if images is None:
+            images = self.get_full_images()
+        cellMask = images[:, :, :, 2].sum(axis=0).astype(int)
+        return cellMask > threshold_otsu(cellMask)
+
+    def background_noise_images_generator(self, multichannel=False):
+        images = self.get_full_images()
+        shp = images[0].shape
+
+        # masking all sparks for generating background noise
+        superMask = np.full((len(images), shp[0], shp[1]), False)
+        sparksDF = self.get_sparks_df()
+        for i, sparkS in sparksDF.iterrows():
+            mask = get_mask(*shp[:2], *sparkS[['x', 'y']])
+            superMask[sparkS['tIni']:sparkS['tFin']] = mask
+        superMask = superMask.reshape((-1,))
+
+        # cell mask
+        cellMask = self.get_cellmask(images)
+
+        # background noise image
+        flatImages = images[:, :, :, 2].flatten()[~superMask]
+
+        while True:
+            noisyImage = np.random.choice(flatImages, shp[:2])
+            noisyImage[~cellMask] = 0
+            if multichannel:
+                aux = np.full(shp, 0)
+                aux[:, :, 2] = noisyImage
+                noisyImage = aux
+            yield noisyImage.astype(np.uint8)
+
+    def spark_images_generator(self, multichannel=False):
+        images = self.get_full_images()
+        shp = images[0].shape
+        noisyGen = self.background_noise_images_generator()
+
+        # cell mask
+        cellMask = self.get_cellmask(images)
+
+        def gen_spark(sparkCentroid, sparkSigma=0.2, noiseSigma=0.5):
+            # circle mask (from centroid)
+            circMask = get_mask(*shp[:2], sparkCentroid[1], sparkCentroid[0])
+
+            # distance matrix
+            y, x = np.ogrid[:shp[0], :shp[1]]
+            centerDist = np.sqrt((x - sparkCentroid[1]) ** 2 + (y - sparkCentroid[0]) ** 2)
+            distProp = centerDist / centerDist[circMask].max()
+            # based on normal pdf
+            distProp = norm.pdf(distProp, loc=0, scale=sparkSigma)
+            # with some noise
+            noisyDistProp = np.random.normal(1, noiseSigma, shp[:2]) * distProp
+
+            # create spark image
+            sparkMaxValue = 127
+            pureSparkImage = noisyDistProp * sparkMaxValue
+            sparkImage = next(noisyGen)
+            sparkImage[circMask] = np.where(pureSparkImage > sparkImage, pureSparkImage, sparkImage)[circMask]
+            sparkImage[sparkImage > 255] = 255
+            sparkImage[sparkImage < 0] = 0
+            sparkImage[~cellMask] = 0
+            if multichannel:
+                aux = np.full(shp, 0)
+                aux[:, :, 2] = sparkImage
+                sparkImage = aux
+            return sparkImage.astype(np.uint8)
+        return gen_spark
+
+
 def get_image_path(idx):
     return os.path.join(IMAGE_FOLDER, IMAGE_FILE_TEMPLATE.format(str(idx).zfill(4)))
 
@@ -171,7 +245,7 @@ def get_spark_location(sparksDF, idx):
     candidates = sparksDF.loc[(sparksDF.loc[:,'tIni'] <= idx) & (sparksDF.loc[:, 'tFin'] > idx), :]
     return candidates
 
-def get_mask(h, w, centerx, centery, radius):
+def get_mask(h, w, centerx, centery, radius=20):
     y, x = np.ogrid[:h, :w]
     dist_from_center = np.sqrt((x - centerx)**2 + (y-centery)**2)
     return dist_from_center <= radius
