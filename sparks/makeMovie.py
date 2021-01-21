@@ -12,8 +12,10 @@ if __name__=='__main__':
 
     video = cv2.VideoWriter(video_name, 0, 30, (width,height))
 
-    for image in images:
-        video.write(cv2.imread(os.path.join(image_folder, image)))
+    for idx, image in enumerate(images):
+        im = cv2.imread(os.path.join(image_folder, image))
+        cv2.putText(im, str(idx), (15, 15), cv2.FONT_HERSHEY_SIMPLEX, .25, (255,255,255))
+        video.write(im)
 
     cv2.destroyAllWindows()
     video.release()
