@@ -8,21 +8,23 @@ from scipy.io import loadmat
 from deepcardio_utils import *
 
 if __name__=='__main__':
+    imageId = sys.argv[1]
+    imageReader = ImageReader(imageId)
+    imagePath = imageReader.get_image_folder()
     normalize = '--normalize' in sys.argv[1:]
-    video_name = f"{IMAGE_ID}{'_norm' if normalize else ''}.avi"
+    video_name = f"{imageReader.get_datasets_path()}/{imageId}{'_norm' if normalize else ''}_circ.avi"
 
-    images = sorted([img for img in os.listdir(IMAGE_FOLDER) if img.endswith(".tif")])
-    frame = cv2.imread(os.path.join(IMAGE_FOLDER, images[0]))
+    images = imageReader.get_images_names()
+    frame = cv2.imread(os.path.join(imagePath, images[0]))
     height, width, layers = frame.shape
 
-    mat = loadmat(os.path.join(DATASETS_PATH, MAT_PATH))['xytspark']
-    sparksDF = pd.DataFrame(mat, columns=['x','y','tIni','tFin'])
+    sparksDF = imageReader.get_sparks_df()
     F0 = None
 
     video = cv2.VideoWriter(video_name, 0, 30, (width,height))
 
     for i, image in enumerate(images):
-        im = cv2.imread(os.path.join(IMAGE_FOLDER, image))
+        im = cv2.imread(os.path.join(imagePath, image))
         if normalize:
             if F0 is None:
                 F0, _, _ = get_f0_and_cellmask()

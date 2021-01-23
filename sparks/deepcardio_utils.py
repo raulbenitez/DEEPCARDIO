@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from scipy.io import loadmat
-from scipy.stats import norm
+from scipy.stats import norm, median_absolute_deviation
 from skimage.filters import threshold_otsu, gaussian
 from sklearn import mixture
 
@@ -51,7 +51,7 @@ class ImageReader:
         if self._matFile:
             return self._matFile
         matFiles = [img for img in os.listdir(self._imageFolderPath) if img.endswith(".mat")]
-        csvFiles = [img for img in os.listdir(self._imageFolderPath) if img.endswith(".csv") and not img.startswith('class')]
+        csvFiles = [img for img in os.listdir(self._imageFolderPath) if img.endswith(".csv") and 'xyt' in img]
         assert (len(matFiles)+len(csvFiles))==1, 'It is only possible to have sparks either in matlab form or csv form.'
 
         self._matFile = matFiles[0] if len(matFiles) else csvFiles[0]
@@ -165,17 +165,23 @@ class ImageReader:
         cellMask = images[:, :, :, 2].sum(axis=0).astype(int)
         return cellMask > threshold_otsu(cellMask)
 
-    def background_noise_images_generator(self, multichannel=False):
-        images = self.get_full_images()
+    def get_full_sparks_flattened_supermask(self, images):
         shp = images[0].shape
 
-        # masking all sparks for generating background noise
         superMask = np.full((len(images), shp[0], shp[1]), False)
         sparksDF = self.get_sparks_df()
         for i, sparkS in sparksDF.iterrows():
             mask = get_mask(*shp[:2], *sparkS[['x', 'y']])
             superMask[sparkS['tIni']:sparkS['tFin']] = mask
         superMask = superMask.reshape((-1,))
+        return superMask
+
+    def background_noise_images_generator(self, multichannel=False):
+        images = self.get_full_images()
+        shp = images[0].shape
+
+        # masking all sparks for generating background noise
+        superMask = self.get_full_sparks_flattened_supermask(images)
 
         # cell mask
         cellMask = self.get_cellmask(images)
@@ -200,6 +206,17 @@ class ImageReader:
         # cell mask
         cellMask = self.get_cellmask(images)
 
+        # Get spark lower bound for not making it too subtle.
+        #   We treat the background noise as if it followed a normal distribution, then we find its sigma. And we will
+        #   use (mean + sigma) as lower bound.
+        #   We use the meadian absolute deviation (MAD, https://en.wikipedia.org/wiki/Median_absolute_deviation), which
+        #   is considered a measure of variability more robust than the std.
+        superMask = self.get_full_sparks_flattened_supermask(images)
+        sigmaIntensity = median_absolute_deviation(images[:, :, :, 2].flatten()[~superMask])*1.4826
+        intensityLow = images[:, :, :, 2].flatten()[~superMask].mean() + sigmaIntensity
+        # We also get an upper bound for the intensity.
+        intensityUpp = np.quantile(images[:, :, :, 2].flatten()[~superMask], 0.9999)
+
         def gen_spark(sparkCentroid, sparkSigma=0.2, noiseSigma=0.5):
             # circle mask (from centroid)
             circMask = get_mask(*shp[:2], sparkCentroid[1], sparkCentroid[0])
@@ -213,9 +230,11 @@ class ImageReader:
             # with some noise
             noisyDistProp = np.random.normal(1, noiseSigma, shp[:2]) * distProp
 
+            centroidPdfValue = distProp[sparkCentroid]
+
             # create spark image
-            sparkMaxValue = 127
-            pureSparkImage = noisyDistProp * sparkMaxValue
+            sparkMaxValue = np.random.randint(intensityLow, intensityUpp)
+            pureSparkImage = noisyDistProp * sparkMaxValue/centroidPdfValue
             sparkImage = next(noisyGen)
             sparkImage[circMask] = np.where(pureSparkImage > sparkImage, pureSparkImage, sparkImage)[circMask]
             sparkImage[sparkImage > 255] = 255
@@ -225,7 +244,7 @@ class ImageReader:
                 aux = np.full(shp, 0)
                 aux[:, :, 2] = sparkImage
                 sparkImage = aux
-            return sparkImage.astype(np.uint8)
+            return sparkImage.astype(np.uint8), sparkMaxValue
         return gen_spark
 
 
