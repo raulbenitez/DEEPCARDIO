@@ -2,12 +2,13 @@ import os
 import sys
 
 import cv2
-import keras
+from tensorflow import keras
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from keras import backend as K
 import tensorflow as tf
+import matplotlib.cm as cm
 
 from deepcardio_utils import ImageReader
 
@@ -47,6 +48,8 @@ if __name__=='__main__':
 
     # https://keras.io/examples/vision/grad_cam/
 
+    img_array = np.expand_dims(X[idx], axis=0)
+
     # First, we create a model that maps the input image to the activations
     # of the last conv layer
     classifier_layer_names = [
@@ -68,7 +71,7 @@ if __name__=='__main__':
     # with respect to the activations of the last conv layer
     with tf.GradientTape() as tape:
         # Compute activations of the last conv layer and make the tape watch it
-        last_conv_layer_output = last_conv_layer_model(tf.convert_to_tensor(X[idx:idx+1]))
+        last_conv_layer_output = last_conv_layer_model(img_array)
         tape.watch(last_conv_layer_output)
         # Compute class predictions
         preds = classifier_model(last_conv_layer_output)
@@ -99,6 +102,34 @@ if __name__=='__main__':
 
     plt.matshow(heatmap)
     plt.show()
+
+    img = X[idx]
+    # We rescale heatmap to a range 0-255
+    heatmap = np.uint8(255 * heatmap)
+
+    # We use jet colormap to colorize heatmap
+    jet = cm.get_cmap("jet")
+
+    # We use RGB values of the colormap
+    jet_colors = jet(np.arange(256))[:, :3]
+    jet_heatmap = jet_colors[heatmap]
+
+    # We create an image with RGB colorized heatmap
+    jet_heatmap = keras.preprocessing.image.array_to_img(jet_heatmap)
+    jet_heatmap = jet_heatmap.resize((img.shape[1], img.shape[0]))
+    jet_heatmap = keras.preprocessing.image.img_to_array(jet_heatmap)
+
+    # Superimpose the heatmap on original image
+    superimposed_img = jet_heatmap * 0.4 + img
+    superimposed_img = keras.preprocessing.image.array_to_img(superimposed_img)
+    plt.figure(figsize=(10,3))
+    plt.imshow(superimposed_img)
+    plt.axis('off')
+    plt.show()
+
+    # # Save the superimposed image
+    # save_path = "classActivation.jpg"
+    # superimposed_img.save(save_path)
 
 
     # https://valentinaalto.medium.com/class-activation-maps-in-deep-learning-14101e2ec7e1
