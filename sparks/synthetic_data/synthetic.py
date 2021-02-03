@@ -11,6 +11,14 @@ from math import sqrt, pi, e
 
 from deepcardio_utils import ImageReader, get_mask
 
+N_FRAMES = 2000
+SPARKS_N_FRAMES = (2, 10)
+SPARKS_SIZE_SIGMA = (0.2, 0.5)
+SPARKS_NOISE_SIGMA = (0.3, 2)
+SPARK_PROP = 0.146 / 10.
+
+VERBOSE_SPARKS_FILE = 'verboseSparks.csv'
+
 
 if __name__=='__main__':
     imageReader = ImageReader()
@@ -25,14 +33,8 @@ if __name__=='__main__':
     # synthetic spark
     sparkGen = imageReader.spark_images_generator(multichannel=True)
 
-    N_FRAMES = 2000
-    SPARKS_N_FRAMES = (2, 10)
-    SPARKS_SIZE_SIGMA = (0.2, 0.5)
-    SPARKS_NOISE_SIGMA = (0.3, 2)
-    SPARK_PROP = 0.146 / 10.
-
     timeID = datetime.datetime.now(pytz.timezone('Europe/Madrid')).strftime('%Y-%m-%d_%H-%M-%S')
-    GEN_IMAGE_ID = f"{timeID}_gen_images"
+    GEN_IMAGE_ID = f"{timeID}_synthetic"
     savePath = os.path.join(imageReader.get_datasets_path(), GEN_IMAGE_ID)
     print(savePath)
     if not os.path.exists(savePath):
@@ -70,7 +72,7 @@ if __name__=='__main__':
     # store classes
     classes.to_csv(os.path.join(savePath, 'class.csv'), header=False, index=False, sep=';')
     verboseSparksDF = pd.DataFrame(verboseSparksList, columns=['sparkIdx', 'size_sigma', 'noise_sigma', 'spark_max'])
-    verboseSparksDF.to_csv(os.path.join(savePath, 'verboseSparks.csv'), index=False, sep=';')
+    verboseSparksDF.to_csv(os.path.join(savePath, VERBOSE_SPARKS_FILE), index=False, sep=';')
 
     # store compact npy file
     genImageReader = ImageReader(imageId=GEN_IMAGE_ID)

@@ -9,6 +9,7 @@ from scipy.io import loadmat
 from scipy.stats import norm, median_absolute_deviation
 from skimage.filters import threshold_otsu, gaussian
 from sklearn import mixture
+import matplotlib.pyplot as plt
 
 DATASETS_PATH = '../_datasets/deepcardio'
 IMAGE_ID = '170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium'
@@ -247,6 +248,16 @@ class ImageReader:
             return sparkImage.astype(np.uint8), sparkMaxValue
         return gen_spark
 
+    def plot_img(self, idx):
+        images = self.get_full_images()
+        plot_cell(images[idx])
+
+
+def plot_cell(image):
+    plt.figure(figsize=(20,3))
+    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.axis('off')
+    plt.show()
 
 def get_image_path(idx):
     return os.path.join(IMAGE_FOLDER, IMAGE_FILE_TEMPLATE.format(str(idx).zfill(4)))

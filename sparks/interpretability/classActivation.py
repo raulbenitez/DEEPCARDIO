@@ -2,7 +2,8 @@ import os
 import sys
 
 import cv2
-from tensorflow import keras
+# from tensorflow import keras
+import keras
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -30,6 +31,7 @@ if __name__=='__main__':
 
     # Y_pred = inceptionv3.predict(X)
     # Y_pred = Y_pred.round().argmax(axis=-1)
+    # Y_pred = (Y_pred[:, 1] > 0.95).astype(int)
     Y_pred = pd.read_csv(os.path.join(imageReader.get_image_folder(), 'pred_class.csv'), header=None, squeeze=True)
 
     falsePositives = ~Y.astype(bool) & Y_pred.astype(bool)
@@ -46,9 +48,34 @@ if __name__=='__main__':
     plt.axis('off')
     plt.show()
 
-    # https://keras.io/examples/vision/grad_cam/
-
     img_array = np.expand_dims(X[idx], axis=0)
+
+    # interpretability DL thesis
+
+    import numpy as np
+    from keras.models import Model, load_model
+    from keras.applications.inception_v3 import preprocess_input
+
+    weights = inceptionv3.get_layer('predictions').get_weights()[0]
+    extractor = Model(inputs=inceptionv3.inputs, outputs=inceptionv3.get_layer('mixed10').output)
+    class_to_explain = 1
+    # img_array = preprocess_input(img_array)
+    fm = extractor.predict(img_array)
+    cm = np.dot(fm[0], weights[:, class_to_explain])
+    cm = cv2.resize(cm, ((X[idx].shape[1], X[idx].shape[0])))
+    fig, ax = plt.subplots(1, 2, figsize=(15, 10))
+    ax[0].imshow(cv2.cvtColor(X[idx], cv2.COLOR_BGR2RGB))
+    ax[0].set_xticks([])
+    ax[0].set_yticks([])
+    ax[0].set_title('NT image')
+    ax[1].imshow(cv2.cvtColor(X[idx], cv2.COLOR_BGR2RGB), alpha=0.5)
+    ax[1].imshow(cm, cmap='jet', alpha=0.5)
+    ax[1].set_xticks([])
+    ax[1].set_yticks([])
+    ax[1].set_title('Class Activation Map')
+    plt.show()
+
+    # https://keras.io/examples/vision/grad_cam/
 
     # First, we create a model that maps the input image to the activations
     # of the last conv layer
@@ -103,7 +130,7 @@ if __name__=='__main__':
     plt.matshow(heatmap)
     plt.show()
 
-    img = X[idx]
+    img = images[idx]
     # We rescale heatmap to a range 0-255
     heatmap = np.uint8(255 * heatmap)
 
