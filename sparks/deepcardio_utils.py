@@ -252,6 +252,14 @@ class ImageReader:
         images = self.get_full_images()
         plot_cell(images[idx])
 
+    def plot_img_circled_spark(self, idx):
+        im = self.get_full_images()[idx]
+        sparkLocations = get_spark_location(self.get_sparks_df(), idx)
+        for i, sparkLocation in sparkLocations.iterrows():
+            color = int(im.max() * 2)
+            cv2.circle(im, (sparkLocation['x'], sparkLocation['y']), 20, color, thickness=1, lineType=8, shift=0)
+        plot_cell(im)
+
 
 def plot_cell(image):
     plt.figure(figsize=(20,3))
@@ -272,7 +280,7 @@ def get_spark_location_(sparksDF, idx):
     return candidates.loc[candidates.index.min(), ['x', 'y']]
 
 def get_spark_location(sparksDF, idx):
-    candidates = sparksDF.loc[(sparksDF.loc[:,'tIni'] <= idx) & (sparksDF.loc[:, 'tFin'] > idx), :]
+    candidates = sparksDF.loc[(sparksDF.loc[:,'tIni'] <= idx) & (sparksDF.loc[:, 'tFin'] >= idx), :]
     return candidates
 
 def get_mask(h, w, centerx, centery, radius=20):

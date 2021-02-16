@@ -86,7 +86,7 @@ class SparkPredictor:
 
         falsePositives, falseNegatives, truePositives, trueNegatives = hightlights
         df = pd.read_csv(verboseSparkPath, sep=';')
-        df.loc[:, 'falseNegatives'] = falseNegatives[self._Y == 1].reset_index(drop=True)
+        df.loc[:, 'falseNegatives'] = falseNegatives[self._Y == 1]
 
         df.plot.scatter('size_sigma', 'noise_sigma', c=df.loc[:, 'falseNegatives'], cmap='viridis')
         plt.show()
