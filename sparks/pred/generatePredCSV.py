@@ -17,7 +17,7 @@ if __name__=='__main__':
     sparkPredictor = SparkPredictor()
     imageReader = sparkPredictor.get_image_reader()
     X, Y = sparkPredictor.get_X_Y()
-    Y_pred = sparkPredictor.predict(forcePrediction=True)
+    Y_pred = sparkPredictor.predict()
 
     sparkPredictor.get_prediction_statistics(Y_pred)
     falsePositives, falseNegatives, truePositives, trueNegatives = sparkPredictor.get_prediction_highlights(Y_pred)
