@@ -97,11 +97,11 @@ class ImageReader:
         return np.array(
             [np.concatenate((im, np.full((minsize - im.shape[0], width, layers), 0))).astype('uint8') for im in images])
 
-    def get_frame_wise_class_gmm(self, frameList=None, classesFromFile=False, sparksDF=None):
+    def get_frame_wise_class_gmm(self, frameList=None, classesFromFile=True, sparksDF=None):
         if not frameList:
             frameList=list(range(len(self._imagesNames)))
         classesPath = os.path.join(self.get_image_folder(), 'class.csv')
-        if classesFromFile:
+        if classesFromFile and os.path.exists(classesPath):
             return pd.read_csv(classesPath, header=None, sep=';').loc[frameList].squeeze().to_numpy()
 
         if not sparksDF:
@@ -121,44 +121,38 @@ class ImageReader:
         np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
         return classes
 
-    def get_frame_wise_class_windowed(self, frameList=None, classesFromFile=False, sparksDF=None):
+    def get_pixel_wise_classification(self, frameList=None):
         if not frameList:
             frameList=list(range(len(self._imagesNames)))
-        classesPath = os.path.join(self.get_image_folder(), 'class_win.csv')
-        if classesFromFile:
-            return pd.read_csv(classesPath, header=None, sep=';').loc[frameList].squeeze().to_numpy()
+        images = self.get_full_images()
+        sparksDF = self.get_sparks_df()
+        classes = self.get_frame_wise_class_gmm()
 
-        if not sparksDF:
-            sparksDF = self.get_sparks_df()
-
-        sparksDF.loc[:, 'maxIdx'] = pd.Series(np.nan, index=sparksDF.index)
-
-        for sidx, spark in sparksDF.iterrows():
-            meansList = []
-            for idx in range(int(spark['tIni']), int(spark['tFin'])):
-                im = cv2.imread(self.get_image_path(idx))
-                imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
-                mask = get_mask(im.shape[0], im.shape[1], spark['x'], spark['y'], 20)
-                meansList.append(imFiltered[mask].reshape(-1,1).mean())
-            sparksDF.loc[sidx, 'maxIdx'] = spark['tIni']+np.argmax(meansList)
-        sparksDF = sparksDF.astype({'maxIdx': int})
-
-        classes = np.full((len(frameList),), False)
+        sparkLocationsList = []
 
         for i, idx in enumerate(frameList):
-            im = cv2.imread(self.get_image_path(idx))
+            im = images[idx]
             imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
+
+            sparkLocationsList.append(np.full(im.shape[:-1], False))
 
             sparkLocationsDF = get_spark_location(sparksDF, idx)
             for _, sparkLocation in sparkLocationsDF.iterrows():
                 mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
-                SPARK_WINDOW = 3
-                classes[i] = classes[i] or (idx == sparkLocation['maxIdx']) or \
-                             ((idx-3 <= sparkLocation['maxIdx'] <= idx+3) and is_spark_visible_gmm(imFiltered, mask))
 
-        classes = classes.astype(int)
-        np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
-        return classes
+                if classes[idx]:
+                    aux = imFiltered[mask].reshape(-1, imFiltered.shape[-1])
+                    # nComp, _ = get_optimal_ncomponents_and_bic_gmm(aux)
+                    nComp = 3
+                    gmm = mixture.GaussianMixture(n_components=nComp).fit(aux)
+                    lab = gmm.predict(aux)
+                    mixtIdx = gmm.means_[:, 2].argmax()
+                    isSparkCond = np.copy(mask)
+                    isSparkCond[isSparkCond] = lab == mixtIdx
+
+                    sparkLocationsList[i] += isSparkCond
+
+        return np.array(sparkLocationsList)
 
     def get_cellmask(self, images=None):
         if images is None:
@@ -334,36 +328,6 @@ def is_spark_visible_gmm(imFiltered, mask):
     nComp, bic = get_optimal_ncomponents_and_bic_gmm(imFiltered[mask].reshape(-1, imFiltered.shape[-1]))
     return nComp == 2 or nComp == 3
 
-def get_pixel_wise_classification(frameList, sparksDF=None):
-    if not sparksDF:
-        mat = loadmat(os.path.join(DATASETS_PATH, MAT_PATH))['xytspark']
-        sparksDF = pd.DataFrame(mat, columns=['x', 'y', 'tIni', 'tFin'])
-
-    sparkLocationsList = []
-
-    for i, idx in enumerate(frameList):
-        im = cv2.imread(get_image_path(idx))
-        imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
-
-        sparkLocationsList.append(np.full(im.shape[:-1], False))
-
-        sparkLocationsDF = get_spark_location(sparksDF, idx)
-        for _, sparkLocation in sparkLocationsDF.iterrows():
-            mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
-
-            if is_spark_visible_gmm(imFiltered, mask):
-                aux = imFiltered[mask].reshape(-1, imFiltered.shape[-1])
-                nComp, bic = get_optimal_ncomponents_and_bic_gmm(aux)
-                gmm = mixture.GaussianMixture(n_components=nComp).fit(aux)
-                lab = gmm.predict(aux)
-                mixtIdx = gmm.means_[:, 2].argmax()
-                isSparkCond = np.copy(mask)
-                isSparkCond[isSparkCond] = lab == mixtIdx
-
-                sparkLocationsList[i] += isSparkCond
-
-    return np.array(sparkLocationsList)
-
 def get_frame_wise_classification(frameList, sparksDF=None):
     if not sparksDF:
         mat = loadmat(os.path.join(DATASETS_PATH, MAT_PATH))['xytspark']
@@ -405,9 +369,13 @@ def get_gmm_from_all_sparks():
     return gmm
 
 if __name__=='__main__':
-    # gmm = get_gmm_from_all_sparks()
-
-    aux = get_frame_wise_classification([2000, 2005])
-    aux = get_pixel_wise_classification([2000, 2005])
+    imageReader = ImageReader(imageId='2021-01-23_02-52-32_gen_images')
+    images = imageReader.get_full_images()
+    classes = imageReader.get_frame_wise_class_gmm()
+    pixelWiseClass = imageReader.get_pixel_wise_classification()
+    for idx, pw in enumerate(pixelWiseClass):
+        im = images[idx].copy()
+        im[:, :, 1] = np.where(pw, 128, 0)
+        plot_cell(im)
 
     pass

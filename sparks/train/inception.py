@@ -18,10 +18,7 @@ def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PAT
 
     imageIdxs = list(range(images.shape[0]))
 
-    if not windowedClass:
-        classes = imageReader.get_frame_wise_class_gmm(imageIdxs, classesFromFile=classesFromFile)
-    else:
-        classes = imageReader.get_frame_wise_class_windowed(imageIdxs, classesFromFile=classesFromFile)
+    classes = imageReader.get_frame_wise_class_gmm(imageIdxs, classesFromFile=classesFromFile)
 
     # Transform targets to keras compatible format
     num_classes = 2
