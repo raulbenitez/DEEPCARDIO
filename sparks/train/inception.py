@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from deepcardio_utils import IMAGE_FOLDER, get_frame_wise_classification, IMAGE_ID, DATASETS_PATH, ImageReader
 
 
-def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PATH, gaussianFilter=False, windowedClass=False):
+def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PATH, gaussianFilter=False):
     imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
     images = imageReader.get_full_padded_images(gaussianFilter=gaussianFilter)
 
@@ -34,32 +34,6 @@ def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PAT
           f"and in validation dataset: {round(Y_valid.sum(axis=0)[1]/Y_valid.shape[0]*100, 2)}")
 
     return X_train, Y_train, X_valid, Y_valid
-
-
-def old_metric_spark_recall(y_true, y_pred):
-    realSparks = tf.math.argmax(y_true, axis=1) == 1
-    predSparks = tf.math.argmax(y_pred, axis=1) == 1
-    wellPredSparks = realSparks & predSparks
-    return tf.math.reduce_sum(tf.cast(wellPredSparks, np.float32)) / tf.math.reduce_sum(tf.cast(realSparks, np.float32))
-
-def metric_08recall_02accuracy(y_true, y_pred):
-    # metrica ponderada 0.2 accuracy + 0.8 recall (classes spark exclusivament), sempre que hi hagi sparks, sino acc
-    realSparks = tf.math.argmax(y_true, axis=1) == 1
-    predSparks = tf.math.argmax(y_pred, axis=1) == 1
-    wellPredSparks = realSparks & predSparks
-    wellPredNoSparks = ~realSparks & ~predSparks
-
-    realSparksCount = tf.math.reduce_sum(tf.cast(realSparks, np.float32))
-    wellPredSparksCount = tf.math.reduce_sum(tf.cast(wellPredSparks, np.float32))
-    wellPredCount = tf.math.reduce_sum(tf.cast(wellPredNoSparks, np.float32)) + wellPredSparksCount
-
-    recall = wellPredSparksCount / realSparksCount
-    accuracy = wellPredCount / tf.cast(tf.shape(y_true)[0], np.float32)
-
-    # ret =  recall * 0.8 + accuracy * 0.2if realSparksCount > 0 else accuracy
-    return tf.cond(tf.greater(realSparksCount, 0),
-                   lambda: recall * 0.8 + accuracy * 0.2,
-                   lambda: accuracy)
 
 def _sigmoid(x):
     return 2/(1+tf.math.exp(-5*x))-1

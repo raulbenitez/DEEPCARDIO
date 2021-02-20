@@ -16,6 +16,7 @@ IMAGE_ID = '170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium'
 IMAGE_FOLDER = os.path.join(DATASETS_PATH, IMAGE_ID)
 IMAGE_FILE_TEMPLATE = '170215_RyR-GFP30_RO_01_Serie2_z1{}_ch01.tif'
 MAT_PATH = '170215_RyR-GFP30_01_Serie2_Sparks.mat'
+PIXEL_WISE_CLASS_FILE = 'pixelWiseClass.npy'
 
 BACKGROUND_MAX_VALUE = 0
 
@@ -121,9 +122,13 @@ class ImageReader:
         np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
         return classes
 
-    def get_pixel_wise_classification(self, frameList=None):
+    def get_pixel_wise_classification(self, frameList=None, classFromFile=True):
         if not frameList:
             frameList=list(range(len(self._imagesNames)))
+        classFilePath = os.path.join(self.get_image_folder(), PIXEL_WISE_CLASS_FILE)
+        if classFromFile and os.path.exists(classFilePath):
+            return np.load(classFilePath)
+
         images = self.get_full_images()
         sparksDF = self.get_sparks_df()
         classes = self.get_frame_wise_class_gmm()
@@ -152,7 +157,9 @@ class ImageReader:
 
                     sparkLocationsList[i] += isSparkCond
 
-        return np.array(sparkLocationsList)
+        cl = np.array(sparkLocationsList).astype(np.int8)
+        np.save(classFilePath, cl)
+        return cl
 
     def get_cellmask(self, images=None):
         if images is None:
@@ -208,6 +215,7 @@ class ImageReader:
         #   is considered a measure of variability more robust than the std.
         superMask = self.get_full_sparks_flattened_supermask(images)
         sigmaIntensity = median_absolute_deviation(images[:, :, :, 2].flatten()[~superMask])*1.4826
+        # if one desires to generate sparks with lower intensity just comment the adding of the sigma
         intensityLow = images[:, :, :, 2].flatten()[~superMask].mean() + sigmaIntensity
         # We also get an upper bound for the intensity.
         intensityUpp = np.quantile(images[:, :, :, 2].flatten()[~superMask], 0.9999)
@@ -372,10 +380,19 @@ if __name__=='__main__':
     imageReader = ImageReader(imageId='2021-01-23_02-52-32_gen_images')
     images = imageReader.get_full_images()
     classes = imageReader.get_frame_wise_class_gmm()
-    pixelWiseClass = imageReader.get_pixel_wise_classification()
+    pixelWiseClass = imageReader.get_pixel_wise_classification(classFromFile=False)
     for idx, pw in enumerate(pixelWiseClass):
+        if idx % 100 == 0:
+            print(f"plotting frame {idx}/{len(images)}")
         im = images[idx].copy()
         im[:, :, 1] = np.where(pw, 128, 0)
-        plot_cell(im)
+        fig = plt.figure(figsize=(20, 3))
+        plt.imshow(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+        plt.axis('off')
+        figPath = os.path.join('train/pixel_wise', imageReader.get_image_id())
+        if not os.path.exists(figPath):
+            os.makedirs(figPath)
+        plt.savefig(os.path.join(figPath, str(idx).zfill(5)), bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
 
     pass
