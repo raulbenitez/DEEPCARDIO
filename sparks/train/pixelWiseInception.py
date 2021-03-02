@@ -6,7 +6,7 @@ from deepcardio_utils import DATASETS_PATH, ImageReader
 
 def load_data(imageId, datasetsPath=DATASETS_PATH, gaussianFilter=False):
     imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
-    images = imageReader.get_full_padded_images(gaussianFilter=gaussianFilter)
+    images = imageReader.get_full_images(gaussianFilter=gaussianFilter)
     classes = imageReader.get_pixel_wise_classification()
 
     # Transform targets to keras compatible format

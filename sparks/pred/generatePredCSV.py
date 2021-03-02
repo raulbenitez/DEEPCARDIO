@@ -21,6 +21,7 @@ if __name__=='__main__':
 
     sparkPredictor.get_prediction_statistics(Y_pred)
     falsePositives, falseNegatives, truePositives, trueNegatives = sparkPredictor.get_prediction_highlights(Y_pred)
+    print(f"Total of {Y_pred.sum()} elements of class spark out of {Y_pred.shape[0]}")
 
     idxs = np.array(range(len(Y)))
     idx = np.random.choice(idxs[falseNegatives], 1)[0]

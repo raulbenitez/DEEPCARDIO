@@ -48,7 +48,7 @@ class SparkPredictor:
         return self._imageReader
 
     def get_preds_dirname(self):
-        dirn = os.path.join(PREDS_BASE_PATH, self.get_model_id())
+        dirn = os.path.join(PREDS_BASE_PATH, self._imageReader.get_image_id(), self.get_model_id())
         if not os.path.exists(dirn):
             os.makedirs(dirn)
         return dirn
