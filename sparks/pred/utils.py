@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import os
 import sys
 
@@ -6,6 +7,7 @@ import keras
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from keras.utils import np_utils
 
 from deepcardio_utils import ImageReader, get_spark_location
 from synthetic_data.synthetic import VERBOSE_SPARKS_FILE
@@ -13,10 +15,11 @@ from train.pixelWiseLib import get_model
 
 DEFAULT_MODEL = 'pred/inceptionv3_ep30_b32__classWeights__synData2021-01-23_02-02-14.h5'
 PREDS_BASE_PATH = 'pred/predictions_db'
-PREDS_FILE = 'pred_class.csv'
+FRAMEWISE_PREDS_FILE = 'pred_class.csv'
+PIXELWISE_PREDS_FILE = 'pixelwise_class.npy'
 
 
-class SparkPredictor:
+class BasePredictor(ABC):
     def __init__(self, imageId=None, datasetsPath=None, model=None) -> None:
         if not os.path.exists(PREDS_BASE_PATH):
             os.makedirs(PREDS_BASE_PATH)
@@ -28,15 +31,22 @@ class SparkPredictor:
         self._imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
         self._modelPath = model
 
-        # X & Y
-        self._X = self._imageReader.get_full_padded_images()
-        self._Y = self._imageReader.get_frame_wise_class_gmm(classesFromFile=True)
-        # preprocess data
-        self._X = self._X.astype('float32') / 255.
+        self._X = self._Y = self._model = None
 
-        self._inceptionv3 = keras.applications.InceptionV3(include_top=True, weights=None,
-                                                           classes=2, input_shape=self._X[0].shape)
-        self._inceptionv3.load_weights(self._modelPath)
+        self.load_X_Y()
+        self.load_model()
+
+    @abstractmethod
+    def load_X_Y(self):
+        pass
+
+    @abstractmethod
+    def load_model(self):
+        pass
+
+    @abstractmethod
+    def get_preds_filename(self):
+        pass
 
     def get_model_id(self):
         return os.path.splitext(os.path.basename(self._modelPath))[0]
@@ -54,7 +64,32 @@ class SparkPredictor:
         return dirn
 
     def get_preds_file_path(self):
-        return os.path.join(self.get_preds_dirname(), PREDS_FILE)
+        return os.path.join(self.get_preds_dirname(), self.get_preds_filename())
+
+    @abstractmethod
+    def predict(self, forcePrediction=False):
+        pass
+
+    @abstractmethod
+    def generate_prediction_frames(self):
+        pass
+
+
+class FrameWisePredictor(BasePredictor):
+    def load_X_Y(self):
+        # X & Y
+        self._X = self._imageReader.get_full_padded_images()
+        self._Y = self._imageReader.get_frame_wise_class_gmm(classesFromFile=True)
+        # preprocess data
+        self._X = self._X.astype('float32') / 255.
+
+    def load_model(self):
+        self._model = keras.applications.InceptionV3(include_top=True, weights=None,
+                                                     classes=2, input_shape=self._X[0].shape)
+        self._model.load_weights(self._modelPath)
+
+    def get_preds_filename(self):
+        return FRAMEWISE_PREDS_FILE
 
     def predict(self, forcePrediction=False):
         # from file
@@ -62,7 +97,7 @@ class SparkPredictor:
             return pd.read_csv(self.get_preds_file_path(), header=None, squeeze=True)
 
         # prediction
-        Y_pred = self._inceptionv3.predict(self._X)
+        Y_pred = self._model.predict(self._X)
         Y_pred =  Y_pred.round().argmax(axis=-1)
         pd.Series(Y_pred).to_csv(self.get_preds_file_path(), header=False, index=False)
         return Y_pred
@@ -128,7 +163,7 @@ class SparkPredictor:
             fig = plt.figure(figsize=(20, 3))
             plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             plt.axis('off')
-            plt.savefig(os.path.join(self.get_preds_dirname(), str(idx).zfill(5)), bbox_inches = 'tight', pad_inches = 0)
+            plt.savefig(os.path.join(self.get_preds_dirname(), 'figures', str(idx).zfill(5)), bbox_inches = 'tight', pad_inches = 0)
             plt.close(fig)
             video.write(image)
 
@@ -136,12 +171,18 @@ class SparkPredictor:
         video.release()
 
 
-class PixelWisePredictor:
-    def __init__(self, imageId = None):
-        self._modelPath = 'pred/pixelWiseUNet.h5'
-        self._imageReader = ImageReader(imageId=imageId)
-        imagesShape = self._imageReader.get_full_images()[0].shape
+class PixelWisePredictor(BasePredictor):
+    def load_X_Y(self):
+        self._X = self._imageReader.get_full_images().astype(np.float32) / 255.
 
+        try:
+            self._Y = imageReader.get_pixel_wise_classification()
+            self._Y = np_utils.to_categorical(self._Y, 2)
+        except Exception as e:
+            self._Y = None
+
+    def load_model(self):
+        imagesShape = self._imageReader.get_full_images()[0].shape
         self._model = get_model(imagesShape[:-1], 2)
         # Free up RAM in case the model definition cells were run multiple times
         keras.backend.clear_session()
@@ -152,23 +193,27 @@ class PixelWisePredictor:
         self._model.compile(optimizer="rmsprop", loss="categorical_crossentropy")
         self._model.load_weights(self._modelPath)
 
-        self._X = self._imageReader.get_full_images().astype(np.float32) / 255.
-
-    def get_X(self):
-        return self._X
+    def get_preds_filename(self):
+        return PIXELWISE_PREDS_FILE
 
     def get_image_reader(self):
         return self._imageReader
 
-    def predict(self):
-        return (self._model.predict(self._X)[:, :, :, 1] > 0.75).astype(int)
+    def predict(self, forcePrediction=False):
+        # from file
+        if not forcePrediction and os.path.exists(self.get_preds_file_path()):
+            return np.load(self.get_preds_file_path())
+
+        Y_pred = (self._model.predict(self._X)[:, :, :, 1] > 0.75).astype(int)
+        np.save(self.get_preds_file_path(), Y_pred)
+        return Y_pred
 
 
 if __name__=='__main__':
-    predictor = PixelWisePredictor('170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium')
+    predictor = PixelWisePredictor('170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium', model='pred/pixelWiseUNet.h5')
     imageReader = predictor.get_image_reader()
     images = imageReader.get_full_images()
-    X = predictor.get_X()
+    X, _ = predictor.get_X_Y()
     Y_pred = predictor.predict()
 
     rSparkCond = Y_pred.reshape(Y_pred.shape[0], -1).any(axis=-1)

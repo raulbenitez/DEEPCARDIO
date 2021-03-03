@@ -21,7 +21,7 @@ if __name__=='__main__':
         os.makedirs(outputFolderPath)
 
     for f in sorted(os.listdir(os.path.join(BASE_PATH, folder))):
-        s = pd.read_csv(os.path.join(BASE_PATH, folder, f), header=None, sep='       ')
+        s = pd.read_csv(os.path.join(BASE_PATH, folder, f), header=None) # , sep='       ')
         im = s.to_numpy().reshape(MX, MY, order='F')
         res_im = np.zeros(imagesShape)
         res_im[:, :, 2] = cv2.resize(im, dsize=(imagesShape[1], imagesShape[0]))
@@ -31,7 +31,7 @@ if __name__=='__main__':
         plt.figure(figsize=(imagesShape[1]/myDpi, imagesShape[0]/myDpi), dpi=myDpi)
         plt.imshow(cv2.cvtColor(res_im, cv2.COLOR_BGR2RGB))
         plt.axis('off')
-        plt.savefig(os.path.join(outputFolderPath, f.replace('.data', '.tif')), bbox_inches='tight', pad_inches=0, dpi=myDpi/0.75)
+        plt.savefig(os.path.join(outputFolderPath, f.replace('.data', '.tif')), bbox_inches='tight', pad_inches=0, dpi=myDpi/0.769)
         # plt.show()
         plt.close()
 
