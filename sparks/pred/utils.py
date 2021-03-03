@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 from deepcardio_utils import ImageReader, get_spark_location
 from synthetic_data.synthetic import VERBOSE_SPARKS_FILE
+from train.pixelWiseLib import get_model
 
 DEFAULT_MODEL = 'pred/inceptionv3_ep30_b32__classWeights__synData2021-01-23_02-02-14.h5'
 PREDS_BASE_PATH = 'pred/predictions_db'
@@ -17,7 +18,6 @@ PREDS_FILE = 'pred_class.csv'
 
 class SparkPredictor:
     def __init__(self, imageId=None, datasetsPath=None, model=None) -> None:
-        super().__init__()
         if not os.path.exists(PREDS_BASE_PATH):
             os.makedirs(PREDS_BASE_PATH)
         if not model:
@@ -134,3 +134,51 @@ class SparkPredictor:
 
         cv2.destroyAllWindows()
         video.release()
+
+
+class PixelWisePredictor:
+    def __init__(self, imageId = None):
+        self._modelPath = 'pred/pixelWiseUNet.h5'
+        self._imageReader = ImageReader(imageId=imageId)
+        imagesShape = self._imageReader.get_full_images()[0].shape
+
+        self._model = get_model(imagesShape[:-1], 2)
+        # Free up RAM in case the model definition cells were run multiple times
+        keras.backend.clear_session()
+
+        # Configure the model for training.
+        # We use the "sparse" version of categorical_crossentropy
+        # because our target data is integers.
+        self._model.compile(optimizer="rmsprop", loss="categorical_crossentropy")
+        self._model.load_weights(self._modelPath)
+
+        self._X = self._imageReader.get_full_images().astype(np.float32) / 255.
+
+    def get_X(self):
+        return self._X
+
+    def get_image_reader(self):
+        return self._imageReader
+
+    def predict(self):
+        return (self._model.predict(self._X)[:, :, :, 1] > 0.75).astype(int)
+
+
+if __name__=='__main__':
+    predictor = PixelWisePredictor('170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium')
+    imageReader = predictor.get_image_reader()
+    images = imageReader.get_full_images()
+    X = predictor.get_X()
+    Y_pred = predictor.predict()
+
+    rSparkCond = Y_pred.reshape(Y_pred.shape[0], -1).any(axis=-1)
+
+    for rSparkIdx in np.random.choice(np.arange(Y_pred.shape[0])[rSparkCond], 10):  # [15, 52, 95]: #
+
+        auxIm = X[rSparkIdx].copy()
+        auxIm[:, :, 1] = Y_pred[rSparkIdx] / 10.
+
+        plt.figure(figsize=(20, 5))
+        plt.imshow(cv2.cvtColor(auxIm, cv2.COLOR_BGR2RGB))
+        plt.axis('off')
+        plt.show()
