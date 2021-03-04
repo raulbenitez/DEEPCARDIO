@@ -71,8 +71,35 @@ class BasePredictor(ABC):
         pass
 
     @abstractmethod
-    def generate_prediction_frames(self):
+    def get_prediction_frame(self, idx, image, Y_pred):
         pass
+
+    def generate_prediction_frames(self):
+        Y_pred = self.predict()
+        images = self._imageReader.get_full_images()
+
+        if not os.path.exists(os.path.join(self.get_preds_dirname(), 'figures')):
+            os.makedirs(os.path.join(self.get_preds_dirname(), 'figures'))
+        video_path = os.path.join(self.get_preds_dirname(), 'pred_labels.avi')
+        height, width, _ = self._imageReader.get_shape()
+        video = cv2.VideoWriter(video_path, 0, 30, (width, height*2+1))
+
+        for idx, image in enumerate(images):
+            if idx % 100 == 0:
+                print(f"labeling frame {idx}/{len(images)}")
+
+            image = self.get_prediction_frame(idx, image, Y_pred)
+
+            fig = plt.figure(figsize=(20, 3))
+            plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            plt.axis('off')
+            plt.savefig(os.path.join(self.get_preds_dirname(), 'figures', str(idx).zfill(5)), bbox_inches='tight',
+                        pad_inches=0)
+            plt.close(fig)
+            video.write(image)
+
+        cv2.destroyAllWindows()
+        video.release()
 
 
 class FrameWisePredictor(BasePredictor):
@@ -145,30 +172,12 @@ class FrameWisePredictor(BasePredictor):
         plt.show()
         pass
 
-    def generate_prediction_frames(self):
-        Y_pred = self.predict()
-        images = self._imageReader.get_full_images()
+    def get_prediction_frame(self, idx, image, Y_pred):
+        im = image.copy()
+        if Y_pred[idx]:
+            cv2.putText(im, 'spark', (15, 15), cv2.FONT_HERSHEY_SIMPLEX, .25, (255, 255, 255))
 
-        video_path = os.path.join(self.get_preds_dirname(), 'pred_labels.avi')
-        height, width, _ = self._imageReader.get_shape()
-        video = cv2.VideoWriter(video_path, 0, 30, (width, height))
-
-        for idx, image in enumerate(images):
-            if idx % 100 == 0:
-                print(f"labeling frame {idx}/{len(images)}")
-            if Y_pred[idx]:
-                cv2.putText(image, 'spark', (15, 15), cv2.FONT_HERSHEY_SIMPLEX, .25, (255, 255, 255))
-
-            image = self._imageReader.get_image_with_circled_sparks(idx, image)
-            fig = plt.figure(figsize=(20, 3))
-            plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            plt.axis('off')
-            plt.savefig(os.path.join(self.get_preds_dirname(), 'figures', str(idx).zfill(5)), bbox_inches = 'tight', pad_inches = 0)
-            plt.close(fig)
-            video.write(image)
-
-        cv2.destroyAllWindows()
-        video.release()
+        return self._imageReader.get_image_with_circled_sparks(idx, im)
 
 
 class PixelWisePredictor(BasePredictor):
@@ -207,6 +216,19 @@ class PixelWisePredictor(BasePredictor):
         Y_pred = (self._model.predict(self._X)[:, :, :, 1] > 0.75).astype(int)
         np.save(self.get_preds_file_path(), Y_pred)
         return Y_pred
+
+    def get_spark_centroid_from_pred(self, pred):
+        return tuple(c.mean().astype(int) for c in np.where(pred))
+
+    def get_prediction_frame(self, idx, image, Y_pred):
+        im = image.copy()
+        predIm = np.zeros(im.shape)
+
+        if Y_pred[idx].any():
+            im = self._imageReader.get_image_with_circled_sparks(idx, im, self.get_spark_centroid_from_pred(Y_pred[idx]))
+            predIm[:, :, 2] = (Y_pred[idx] * 255)
+
+        return np.concatenate((im, np.full((1,image.shape[1], 3), 255), predIm)).astype('uint8')
 
 
 if __name__=='__main__':

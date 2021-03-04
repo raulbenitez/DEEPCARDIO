@@ -254,8 +254,11 @@ class ImageReader:
         images = self.get_full_images()
         plot_cell(images[idx])
 
-    def get_image_with_circled_sparks(self, idx, im):
-        sparkLocations = get_spark_location(self.get_sparks_df(), idx)
+    def get_image_with_circled_sparks(self, idx, im, loc=None):
+        if loc:
+            sparkLocations = pd.DataFrame([loc[::-1]], columns=['x', 'y'])
+        else:
+            sparkLocations = get_spark_location(self.get_sparks_df(), idx)
         for i, sparkLocation in sparkLocations.iterrows():
             color = int(im.max() * 2)
             cv2.circle(im, (sparkLocation['x'], sparkLocation['y']), 20, color, thickness=1, lineType=8, shift=0)
