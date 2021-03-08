@@ -339,46 +339,6 @@ def is_spark_visible_gmm(imFiltered, mask):
     nComp, bic = get_optimal_ncomponents_and_bic_gmm(imFiltered[mask].reshape(-1, imFiltered.shape[-1]))
     return nComp == 2 or nComp == 3
 
-def get_frame_wise_classification(frameList, sparksDF=None):
-    if not sparksDF:
-        mat = loadmat(os.path.join(DATASETS_PATH, MAT_PATH))['xytspark']
-        sparksDF = pd.DataFrame(mat, columns=['x', 'y', 'tIni', 'tFin'])
-
-    classes = np.full((len(frameList), 1), False)
-
-    for i, idx in enumerate(frameList):
-        im = cv2.imread(get_image_path(idx))
-        imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
-
-        sparkLocationsDF = get_spark_location(sparksDF, idx)
-        for _, sparkLocation in sparkLocationsDF.iterrows():
-            mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
-            classes[i] = classes[i] or is_spark_visible_gmm(imFiltered, mask)
-
-    return classes
-
-def get_gmm_from_all_sparks():
-    imageFilesList = sorted([img for img in os.listdir(IMAGE_FOLDER) if img.endswith(".tif")])
-    mat = loadmat(os.path.join(DATASETS_PATH, MAT_PATH))['xytspark']
-    sparksDF = pd.DataFrame(mat, columns=['x', 'y', 'tIni', 'tFin'])
-    fullSparkPixelsList = []
-    for i, image in enumerate(imageFilesList):
-        im = cv2.imread(os.path.join(IMAGE_FOLDER, image))
-        imFiltered = gaussian(im.copy(), sigma=1, multichannel=True, preserve_range=True).astype('uint8')
-
-        sparkLocations = get_spark_location(sparksDF, i)
-        for _, sparkLocation in sparkLocations.iterrows():
-            mask = get_mask(im.shape[0], im.shape[1], sparkLocation['x'], sparkLocation['y'], 20)
-            nComp, bic = get_optimal_ncomponents_and_bic_gmm(imFiltered[mask].reshape(-1,3))
-
-            if (nComp == 2) or (nComp == 3):
-                fullSparkPixelsList.append(imFiltered[mask].reshape(-1, 3))
-    fullSparkPixels = np.concatenate(tuple(fullSparkPixelsList))
-    nComp, bic = get_optimal_ncomponents_and_bic_gmm(fullSparkPixels)
-    gmm = mixture.GaussianMixture(n_components=nComp).fit(fullSparkPixels)
-    np.savetxt('fullSparkPixels.csv', fullSparkPixels, delimiter=";")
-    return gmm
-
 if __name__=='__main__':
     imageReader = ImageReader(imageId='2021-01-23_02-52-32_gen_images')
     images = imageReader.get_full_images()

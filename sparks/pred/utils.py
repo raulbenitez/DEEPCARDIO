@@ -74,7 +74,7 @@ class BasePredictor(ABC):
     def get_prediction_frame(self, idx, image, Y_pred):
         pass
 
-    def generate_prediction_frames(self):
+    def generate_prediction_frames(self, videoSize=1):
         Y_pred = self.predict()
         images = self._imageReader.get_full_images()
 
@@ -82,7 +82,9 @@ class BasePredictor(ABC):
             os.makedirs(os.path.join(self.get_preds_dirname(), 'figures'))
         video_path = os.path.join(self.get_preds_dirname(), 'pred_labels.avi')
         height, width, _ = self._imageReader.get_shape()
-        video = cv2.VideoWriter(video_path, 0, 30, (width, height*2+1))
+        videoWidth = width * videoSize
+        videoHeight = (height*2+1) * videoSize
+        video = cv2.VideoWriter(video_path, 0, 30, (videoWidth, videoHeight))
 
         for idx, image in enumerate(images):
             if idx % 100 == 0:
@@ -96,7 +98,7 @@ class BasePredictor(ABC):
             plt.savefig(os.path.join(self.get_preds_dirname(), 'figures', str(idx).zfill(5)), bbox_inches='tight',
                         pad_inches=0)
             plt.close(fig)
-            video.write(image)
+            video.write(cv2.resize(image, (videoWidth, videoHeight)))
 
         cv2.destroyAllWindows()
         video.release()

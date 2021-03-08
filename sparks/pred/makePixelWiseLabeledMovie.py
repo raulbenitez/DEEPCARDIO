@@ -7,4 +7,4 @@ if __name__=='__main__':
     assert '--model' in args, 'USAGE: --model path_to_model.h5 [--imageid imageid]'
 
     sparkPredictor = PixelWisePredictor()
-    sparkPredictor.generate_prediction_frames()
+    sparkPredictor.generate_prediction_frames(videoSize=1)

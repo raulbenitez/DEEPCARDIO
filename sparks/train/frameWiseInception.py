@@ -1,15 +1,11 @@
-import os
 import keras
-import cv2
-import tensorflow as tf
+import keras
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from skimage.filters import gaussian
+import tensorflow as tf
 from keras.utils import np_utils
 from sklearn.model_selection import train_test_split
 
-from deepcardio_utils import IMAGE_FOLDER, get_frame_wise_classification, IMAGE_ID, DATASETS_PATH, ImageReader
+from deepcardio_utils import IMAGE_ID, DATASETS_PATH, ImageReader
 
 
 def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PATH, gaussianFilter=False):
