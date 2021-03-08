@@ -20,7 +20,7 @@ PIXELWISE_PREDS_FILE = 'pixelwise_class.npy'
 
 
 class BasePredictor(ABC):
-    def __init__(self, imageId=None, datasetsPath=None, model=None) -> None:
+    def __init__(self, imageId=None, datasetsPath=None, model=None, gaussian=False) -> None:
         if not os.path.exists(PREDS_BASE_PATH):
             os.makedirs(PREDS_BASE_PATH)
         if not model:
@@ -30,6 +30,7 @@ class BasePredictor(ABC):
         self._datasetsPath = datasetsPath
         self._imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
         self._modelPath = model
+        self._useGaussian = gaussian # wheather to use gaussian filter for images or not
 
         self._X = self._Y = self._model = None
 
@@ -74,9 +75,9 @@ class BasePredictor(ABC):
     def get_prediction_frame(self, idx, image, Y_pred):
         pass
 
-    def generate_prediction_frames(self, videoSize=1):
-        Y_pred = self.predict()
-        images = self._imageReader.get_full_images()
+    def generate_prediction_frames(self, forcePrediction=False, videoSize=1):
+        Y_pred = self.predict(forcePrediction=forcePrediction)
+        images = self._imageReader.get_full_images(gaussianFilter=self._useGaussian)
 
         if not os.path.exists(os.path.join(self.get_preds_dirname(), 'figures')):
             os.makedirs(os.path.join(self.get_preds_dirname(), 'figures'))
@@ -106,6 +107,9 @@ class BasePredictor(ABC):
 
 class FrameWisePredictor(BasePredictor):
     def load_X_Y(self):
+        if self._useGaussian:
+            print('Not implemented gaussian filter for frame-wise prediction.')
+
         # X & Y
         self._X = self._imageReader.get_full_padded_images()
         self._Y = self._imageReader.get_frame_wise_class_gmm(classesFromFile=True)
@@ -184,7 +188,7 @@ class FrameWisePredictor(BasePredictor):
 
 class PixelWisePredictor(BasePredictor):
     def load_X_Y(self):
-        self._X = self._imageReader.get_full_images().astype(np.float32) / 255.
+        self._X = self._imageReader.get_full_images(gaussianFilter=self._useGaussian).astype(np.float32) / 255.
 
         try:
             self._Y = imageReader.get_pixel_wise_classification()

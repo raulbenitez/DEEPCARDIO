@@ -87,7 +87,7 @@ class ImageReader:
         images = np.load(os.path.join(self._imageFolderPath, 'full_images.npy'))
 
         if gaussianFilter:
-            images = [gaussian(im, sigma=1, multichannel=True, preserve_range=True).astype('uint8') for im in images]
+            images = np.array([gaussian(im, sigma=1, multichannel=True, preserve_range=True).astype('uint8') for im in images])
 
         return images
 
