@@ -67,7 +67,10 @@ class ImageReader:
             sparksDF = pd.DataFrame(mat, columns=['x', 'y', 'tIni', 'tFin'])
         else: # csv
             sparksDF = pd.read_csv(matFilePath, sep=',')
-            sparksDF.columns = ['x', 'y', 'tIni', 'tFin']
+            cols = ['x', 'y', 'tIni', 'tFin']
+            if 'size' in matFile:
+                cols.append('pixelSize')
+            sparksDF.columns = cols
 
         return sparksDF
 
@@ -173,8 +176,11 @@ class ImageReader:
         superMask = np.full((len(images), shp[0], shp[1]), False)
         sparksDF = self.get_sparks_df()
         for i, sparkS in sparksDF.iterrows():
-            mask = get_mask(*shp[:2], *sparkS[['x', 'y']])
-            superMask[sparkS['tIni']:sparkS['tFin']] = mask
+            kwrgs = {}
+            if 'pixelSize' in sparkS:
+                kwrgs['radius'] = sparkS['pixelSize']
+            mask = get_mask(*shp[:2], *sparkS[['x', 'y']], **kwrgs)
+            superMask[int(sparkS['tIni']):int(sparkS['tFin'])] = mask
         superMask = superMask.reshape((-1,))
         return superMask
 
@@ -200,7 +206,7 @@ class ImageReader:
                 noisyImage = aux
             yield noisyImage.astype(np.uint8)
 
-    def spark_images_generator(self, multichannel=False):
+    def spark_images_generator(self, multichannel=False, saltAndPepper=False):
         images = self.get_full_images()
         shp = images[0].shape
         noisyGen = self.background_noise_images_generator()
@@ -220,7 +226,7 @@ class ImageReader:
         # We also get an upper bound for the intensity.
         intensityUpp = np.quantile(images[:, :, :, 2].flatten()[~superMask], 0.9999)
 
-        def gen_spark(sparkCentroid, sparkSigma=0.2, noiseSigma=0.5):
+        def gen_spark(sparkCentroid, sparkSigma=0.2, noiseSigma=0.5, pepperThreshold=None):
             # circle mask (from centroid)
             circMask = get_mask(*shp[:2], sparkCentroid[1], sparkCentroid[0])
 
@@ -233,13 +239,25 @@ class ImageReader:
             # with some noise
             noisyDistProp = np.random.normal(1, noiseSigma, shp[:2]) * distProp
 
+            # maximum value for normalization
             centroidPdfValue = distProp[sparkCentroid]
 
             # create spark image
             sparkMaxValue = np.random.randint(intensityLow, intensityUpp)
+            # spark intensity normalized
             pureSparkImage = noisyDistProp * sparkMaxValue/centroidPdfValue
             sparkImage = next(noisyGen)
-            sparkImage[circMask] = np.where(pureSparkImage > sparkImage, pureSparkImage, sparkImage)[circMask]
+
+            # Where pure gaussian spark is > than back noise, we use it. Otherwise we use the back noise.
+            whereToUsePureSparkMask = pureSparkImage > sparkImage
+            # If saltAndPepper flag is enabled we apply salt and pepper filter to the spark.
+            if saltAndPepper:
+                if pepperThreshold is None:
+                    pepperThreshold = sparkImage[sparkImage>0].flatten().size / sparkImage.flatten().size
+                pepperMask = np.random.random(whereToUsePureSparkMask.shape) < pepperThreshold
+                whereToUsePureSparkMask &= pepperMask
+
+            sparkImage[circMask] = np.where(whereToUsePureSparkMask, pureSparkImage, sparkImage)[circMask]
             sparkImage[sparkImage > 255] = 255
             sparkImage[sparkImage < 0] = 0
             sparkImage[~cellMask] = 0
@@ -249,6 +267,26 @@ class ImageReader:
                 sparkImage = aux
             return sparkImage.astype(np.uint8), sparkMaxValue
         return gen_spark
+
+    def get_spark_simple_data(self):
+        sparkSimpleDataPath = os.path.join(self._imageFolderPath, 'sparkSimpleData.csv')
+        assert os.path.exists(sparkSimpleDataPath), f"Spark data not available: {sparkSimpleDataPath}"
+
+        with open(sparkSimpleDataPath, 'r') as f:
+            lines = [l for l in f.read().split('\n') if len(l) > 1]
+
+        confsDF = pd.DataFrame([(c for c in lines[1].split(',') if len(c) > 0)],
+                               columns=[c for c in lines[0].split(',') if len(c) > 0])
+
+        idx = 0
+        while idx < len(lines):
+            if lines[idx].startswith('ID,Xpix'):
+                break
+            idx += 1
+        survivingSparkLines = lines[(idx + 1):(idx + int(confsDF.loc[:, 'Surviving sparks']) + 1)]
+        detSparksDF = pd.DataFrame([(float(v) for v in l.split(',') if len(v) > 0) for l in survivingSparkLines],
+                                   columns=lines[idx].split(','))
+        return confsDF, detSparksDF
 
     def plot_img(self, idx):
         images = self.get_full_images()
@@ -270,9 +308,10 @@ class ImageReader:
         plot_cell(im)
 
 
-def plot_cell(image):
+def plot_cell(image, title=None):
     plt.figure(figsize=(20,3))
     plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.title(title)
     plt.axis('off')
     plt.show()
 
