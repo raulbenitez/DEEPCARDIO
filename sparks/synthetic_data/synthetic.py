@@ -15,7 +15,8 @@ N_FRAMES = 2000
 SPARKS_N_FRAMES = (2, 10)
 SPARKS_SIZE_SIGMA = (0.2, 0.5)
 SPARKS_NOISE_SIGMA = (0.3, 2)
-SPARK_PROP = 0.146 / 10.
+SPARK_PROP = 0.15 / 2. # 0.146 / 10.
+PEPPER_THRESHOLD = (0.25, 0.7)
 
 VERBOSE_SPARKS_FILE = 'verboseSparks.csv'
 
@@ -24,6 +25,7 @@ if __name__=='__main__':
     imageReader = ImageReader()
     images = imageReader.get_full_images()
     shp = images[0].shape
+    isLeif = 'Leif' in imageReader.get_image_id()
 
     # cell mask
     cellMask = imageReader.get_cellmask(images)
@@ -31,10 +33,10 @@ if __name__=='__main__':
     # synthetic no-spark gen
     noisyGen = imageReader.background_noise_images_generator(multichannel=True)
     # synthetic spark
-    sparkGen = imageReader.spark_images_generator(multichannel=True)
+    sparkGen = imageReader.spark_images_generator(multichannel=True, saltAndPepper=isLeif)
 
     timeID = datetime.datetime.now(pytz.timezone('Europe/Madrid')).strftime('%Y-%m-%d_%H-%M-%S')
-    GEN_IMAGE_ID = f"{timeID}_synthetic"
+    GEN_IMAGE_ID = f"{timeID}{'_TLeif_' if isLeif else ''}_synthetic"
     savePath = os.path.join(imageReader.get_datasets_path(), GEN_IMAGE_ID)
     print(savePath)
     if not os.path.exists(savePath):
@@ -58,9 +60,15 @@ if __name__=='__main__':
                 while not cellMask[sparkCentroid[0], sparkCentroid[1]]:
                     sparkCentroid = np.random.randint(0, shp[0]), np.random.randint(0, shp[1])
                 sparksCentroidsList.append(sparkCentroid)
+
+             # random sizeSigma and noiseSigma, based on hyperparameters definded aboce
             sizeSigma = np.random.uniform(*SPARKS_SIZE_SIGMA)
             noiseSigma = np.random.uniform(*SPARKS_NOISE_SIGMA)
-            im, sparkMaxValue = sparkGen(sparkCentroid, sparkSigma=sizeSigma, noiseSigma=noiseSigma)
+
+            # pepperThreshold if applicable (only Leif data)
+            pepperThreshold = np.random.uniform(*PEPPER_THRESHOLD)
+
+            im, sparkMaxValue = sparkGen(sparkCentroid, sparkSigma=sizeSigma, noiseSigma=noiseSigma, pepperThreshold=pepperThreshold)
             classes[idx] = 1
             verboseSparksList.append((sparkIdx, sizeSigma, noiseSigma, sparkMaxValue))
         else: # no-spark

@@ -101,6 +101,25 @@ class ImageReader:
         return np.array(
             [np.concatenate((im, np.full((minsize - im.shape[0], width, layers), 0))).astype('uint8') for im in images])
 
+    def get_frame_wise_class_sparksdf(self, frameList=None, classesFromFile=True, sparksDF=None):
+        if not frameList:
+            frameList=list(range(len(self._imagesNames)))
+        classesPath = os.path.join(self.get_image_folder(), 'class.csv')
+        if classesFromFile and os.path.exists(classesPath):
+            return pd.read_csv(classesPath, header=None, sep=';').loc[frameList].squeeze().to_numpy()
+
+        if not sparksDF:
+            sparksDF = self.get_sparks_df()
+
+        classes = np.full((len(frameList), 1), False)
+
+        for i, idx in enumerate(frameList):
+            sparkLocationsDF = get_spark_location(sparksDF, idx)
+            classes[i] = classes[i] or (len(sparkLocationsDF) > 0)
+
+        np.savetxt(classesPath, classes, delimiter=";", fmt='%d')
+        return classes
+
     def get_frame_wise_class_gmm(self, frameList=None, classesFromFile=True, sparksDF=None):
         if not frameList:
             frameList=list(range(len(self._imagesNames)))
