@@ -63,8 +63,8 @@ def get_model(img_size, num_classes):
     model = keras.Model(inputs, outputs)
     return model
 
-def load_data(imageId, datasetsPath=DATASETS_PATH, gaussianFilter=False):
-    imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
+def load_data(imageId, datasetsPath=DATASETS_PATH, gaussianFilter=False, rollingSize=0):
+    imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath, rollingSize=rollingSize)
     images = imageReader.get_full_images(gaussianFilter=gaussianFilter)
     classes = imageReader.get_pixel_wise_classification()
 

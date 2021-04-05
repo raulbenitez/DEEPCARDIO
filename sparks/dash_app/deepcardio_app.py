@@ -25,6 +25,7 @@ from dash.dependencies import Input, Output, State
 import plotly.express as px
 
 from deepcardio_utils import ImageReader, get_plottable_image
+from pred.utils import FrameWisePredictor, PixelWisePredictor
 
 GLOB_IMG_READER = ImageReader('170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium')
 GLOB_DICT = {}
@@ -83,7 +84,7 @@ modelSelection = html.Div([dbc.Row(html.H3('Model selection')),
                            dbc.Row([dbc.Col(modelsBasePathInput),
                                     dbc.Col(frameWiseModelSelection),
                                     dbc.Col(pixelWiseModelSelection),
-                                    dbc.Button(id='button-load-models', children='Load models')]),
+                                    dbc.Col(dbc.Button(id='button-load-models', children='Load models'), md=1)]),
                            html.Div(id='model-selection-output')])
 
 ##################
@@ -236,10 +237,16 @@ def previous_spark(nClicksLeft, nClicksRight, inputFrame):
 
 @app.callback(Output('model-selection-output', 'children'),
               Input('button-load-models', 'n_clicks'),
-              State('frame-wise-model', 'value'), State('pixel-wise-model', 'value'))
-def previous_spark(nClicksLoadModels, frameWiseModel, pixelWiseModel):
+              State('frame-wise-model', 'value'), State('pixel-wise-model', 'value'), State('models-base-path', 'value'))
+def previous_spark(nClicksLoadModels, frameWiseModel, pixelWiseModel, modelsBasePath):
     if frameWiseModel is None or pixelWiseModel is None:
         return 'Select both frame-wise and pixel-wise models'
+
+    imageReader = GLOB_DICT['imageReader']
+    framePredictor = FrameWisePredictor(imageId=imageReader.get_image_id(),
+                                        model=os.path.join(modelsBasePath, frameWiseModel))
+    pixelPredictor = PixelWisePredictor(imageId=imageReader.get_image_id(),
+                                        model=os.path.join(modelsBasePath, pixelWiseModel))
 
     return f"Successfully loades models: frame-wise {frameWiseModel} and pixel-wise {pixelWiseModel}"
 
