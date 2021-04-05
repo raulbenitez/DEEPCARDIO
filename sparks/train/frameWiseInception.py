@@ -5,12 +5,15 @@ import tensorflow as tf
 from keras.utils import np_utils
 from sklearn.model_selection import train_test_split
 
-from deepcardio_utils import IMAGE_ID, DATASETS_PATH, ImageReader
+from deepcardio_utils import IMAGE_ID, DATASETS_PATH, ImageReader, get_rolled_images
 
 
-def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PATH, gaussianFilter=False):
+def load_data(classesFromFile=False, imageId=IMAGE_ID, datasetsPath=DATASETS_PATH, gaussianFilter=False, rolledImages=False):
     imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
     images = imageReader.get_full_padded_images(gaussianFilter=gaussianFilter)
+
+    if rolledImages:
+        images = get_rolled_images(images)
 
     imageIdxs = list(range(images.shape[0]))
 

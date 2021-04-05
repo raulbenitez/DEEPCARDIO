@@ -327,12 +327,31 @@ class ImageReader:
         plot_cell(im)
 
 
+def get_plottable_image(img):
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
 def plot_cell(image, title=None):
     plt.figure(figsize=(20,3))
-    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.imshow(get_plottable_image(image))
     plt.title(title)
     plt.axis('off')
     plt.show()
+
+
+def get_rolled_images(images, rollsize=3):
+    # rollsize fixed to 3 frames rolled[i] = mean(images[i-1], images[i], images[i+1])
+    # mean(images[i-leftM], images[i-leftM+1], ..., images[i], ..., images[i+rightM-1], images[i+rightM])
+    # mean(images[i-leftM:i+rightM+1]) (+1) for right margin because of python array indexing
+    leftMargin = int(np.ceil((rollsize-1)/2.))
+    rightMargin = int(np.floor((rollsize-1)/2.))
+    rolledAvgImages = np.zeros(images.shape)
+    for i in range(images.shape[0]):
+        l = max(i-leftMargin, 0)
+        r = min(i+rightMargin+1, images.shape[0])
+        rolledAvgImages[i] = np.ma.average(images[l:r], axis=0)
+    return rolledAvgImages.astype(images.dtype)
+
 
 def get_image_path(idx):
     return os.path.join(IMAGE_FOLDER, IMAGE_FILE_TEMPLATE.format(str(idx).zfill(4)))
