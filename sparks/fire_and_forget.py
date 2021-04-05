@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from deepcardio_utils import ImageReader, plot_cell, get_rolled_images
+from pred.utils import FrameWisePredictor, PixelWisePredictor, get_clustered_pred_sparks
 
 
 def plot_cells(*cells, titles=None):
@@ -21,20 +22,13 @@ def get_rolled_images_(images, rollsize=3):
 
 
 if __name__=='__main__':
-    imageReader = ImageReader()
-    images = imageReader.get_full_images()
+    framePredictor = FrameWisePredictor(model='pred/i3_comp_2021-01-23_02-02-14_gen_images_ep10_b64_ler0.01_ite0.h5')
+    pixelPredictor = PixelWisePredictor(model='pred/pixelWiseUNet.h5')
 
-    rolledAvgImages = get_rolled_images(images)
-    plot_cells(*rolledAvgImages[58:65].astype('uint8'))
+    imageReader = framePredictor.get_image_reader()
+    Y_pred = framePredictor.predict()
 
-    imageReader1 = ImageReader(imageId='2021-03-24_00-35-00_TLeif__synthetic')
-    images1 = imageReader1.get_full_images()
-
-    rolledAvgImages1 = get_rolled_images(images1)
-    plot_cells(*rolledAvgImages1[0:15].astype('uint8'), titles=imageReader1.get_frame_wise_class_gmm(range(0,15)).astype(str))
-    plot_cells(*images1[0:15].astype('uint8'), titles=imageReader1.get_frame_wise_class_gmm(range(0, 15)).astype(str))
-    classes = imageReader1.get_frame_wise_class_gmm()
-
+    get_clustered_pred_sparks(framePredictor, pixelPredictor)
 
     # classes = imageReader.get_frame_wise_class_gmm()
     # pixelClass = imageReader.get_pixel_wise_classification()

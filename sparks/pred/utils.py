@@ -8,8 +8,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.utils import np_utils
+from sklearn import mixture
 
-from deepcardio_utils import ImageReader, get_spark_location
+from deepcardio_utils import ImageReader, get_spark_location, get_mask, get_optimal_ncomponents_and_bic_gmm
 from synthetic_data.synthetic import VERBOSE_SPARKS_FILE
 from train.pixelWiseLib import get_model
 
@@ -236,6 +237,52 @@ class PixelWisePredictor(BasePredictor):
             predIm[:, :, 2] = (Y_pred[idx] * 255)
 
         return np.concatenate((im, np.full((1,image.shape[1], 3), 255), predIm)).astype('uint8')
+
+
+def get_clustered_pred_sparks(framePredictor: FrameWisePredictor, pixelPredictor: PixelWisePredictor):
+    f_pred = framePredictor.predict()
+    p_pred = pixelPredictor.predict()
+
+    doubleCheckSparks = (f_pred==1) & p_pred.any(axis=-1).any(axis=-1)
+    MAX_BLANK_FRAMES = 10
+
+    sparksDFAsList = []
+    sparkPredMasks = []
+    for i, predPixels in enumerate(p_pred):
+        if not doubleCheckSparks[i]:
+            continue
+
+        aux = np.transpose(np.where(predPixels))
+        if aux.shape[0] == 1:
+            continue
+        nComp = get_optimal_ncomponents_and_bic_gmm(aux, nmax=min(10, aux.shape[0]))[0]
+        gmm = mixture.GaussianMixture(n_components=nComp).fit(aux)
+        labels = gmm.predict(aux)
+        for l in np.unique(labels):
+            currentSparkMaskIndices = aux[labels==l]
+            p = np.zeros(predPixels.shape).astype(bool)
+            p[[*currentSparkMaskIndices.T]] = True
+
+            centroid = pixelPredictor.get_spark_centroid_from_pred(p)
+
+            sparkIdx = -1
+            for sIdx, sp in enumerate(sparksDFAsList):
+                if i-sp[3] > MAX_BLANK_FRAMES:
+                    continue
+                if not sparkPredMasks[sIdx][centroid]:
+                    continue
+                sparkIdx = sIdx
+                sparkPredMasks[sIdx] |= p
+                newCentr = pixelPredictor.get_spark_centroid_from_pred(sparkPredMasks[sIdx])
+                sparksDFAsList[sIdx] = (newCentr[1], newCentr[0], sp[2], i)
+                break
+
+            if sparkIdx==-1:
+                sparkIdx = len(sparksDFAsList)
+                sparksDFAsList.append((centroid[1], centroid[0], i, i))
+                sparkPredMasks.append(p)
+
+    return sparksDFAsList, sparkPredMasks
 
 
 if __name__=='__main__':
