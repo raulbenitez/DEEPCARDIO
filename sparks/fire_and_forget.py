@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-from deepcardio_utils import ImageReader, plot_cell
+from deepcardio_utils import ImageReader, plot_cell, get_rolled_images
 
 
 def plot_cells(*cells, titles=None):
@@ -10,15 +10,31 @@ def plot_cells(*cells, titles=None):
     for i, img in enumerate(cells):
         ax[i].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         ax[i].axis('off')
-        if titles:
+        if titles is not None:
             ax[i].set_title(titles[i])
 
     plt.show(bbox_inches='tight', pad_inches=0)
 
 
+def get_rolled_images_(images, rollsize=3):
+    return np.array([np.ma.average(images[max(i-rollsize+1, 0):i+1], axis=0) for i in range(images.shape[0])])
+
+
 if __name__=='__main__':
     imageReader = ImageReader()
     images = imageReader.get_full_images()
+
+    rolledAvgImages = get_rolled_images(images)
+    plot_cells(*rolledAvgImages[58:65].astype('uint8'))
+
+    imageReader1 = ImageReader(imageId='2021-03-24_00-35-00_TLeif__synthetic')
+    images1 = imageReader1.get_full_images()
+
+    rolledAvgImages1 = get_rolled_images(images1)
+    plot_cells(*rolledAvgImages1[0:15].astype('uint8'), titles=imageReader1.get_frame_wise_class_gmm(range(0,15)).astype(str))
+    plot_cells(*images1[0:15].astype('uint8'), titles=imageReader1.get_frame_wise_class_gmm(range(0, 15)).astype(str))
+    classes = imageReader1.get_frame_wise_class_gmm()
+
 
     # classes = imageReader.get_frame_wise_class_gmm()
     # pixelClass = imageReader.get_pixel_wise_classification()
