@@ -14,7 +14,7 @@ if __name__=='__main__':
     args = sys.argv[1:]
     assert '--model' in args, 'USAGE: --model path_to_model.h5 [--imageid imageid]'
 
-    sparkPredictor = FrameWisePredictor()
+    sparkPredictor = FrameWisePredictor(rollingSize=3)
     imageReader = sparkPredictor.get_image_reader()
     X, Y = sparkPredictor.get_X_Y()
     Y_pred = sparkPredictor.predict()

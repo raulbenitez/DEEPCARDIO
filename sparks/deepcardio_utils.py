@@ -21,7 +21,7 @@ PIXEL_WISE_CLASS_FILE = 'pixelWiseClass.npy'
 BACKGROUND_MAX_VALUE = 0
 
 class ImageReader:
-    def __init__(self, imageId=None, datasetsPath=None) -> None:
+    def __init__(self, imageId=None, datasetsPath=None, rollingSize=0) -> None:
         super().__init__()
 
         if not imageId:
@@ -32,6 +32,7 @@ class ImageReader:
         self._imageFolderPath = os.path.join(self._datasetsPath, self._imageId)
         self._imagesNames = sorted([img for img in os.listdir(self._imageFolderPath) if img.endswith(".tif")])
         self._matFile = None
+        self._rollingSize = rollingSize
 
     def get_datasets_path(self):
         return self._datasetsPath
@@ -91,6 +92,9 @@ class ImageReader:
 
         if gaussianFilter:
             images = np.array([gaussian(im, sigma=1, multichannel=True, preserve_range=True).astype('uint8') for im in images])
+
+        if self._rollingSize > 0:
+            images = get_rolled_images(images, rollsize=self._rollingSize)
 
         return images
 

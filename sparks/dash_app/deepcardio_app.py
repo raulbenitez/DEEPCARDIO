@@ -65,6 +65,7 @@ imagesFilePath = html.Div([dbc.Row(html.H3('Images path')),
 #################
 # model selection
 
+modelsBasePathInput = dbc.Input(id='models-base-path', placeholder='Models base path', value='pred/')
 trainedModels = [f for f in os.listdir('pred/') if f.endswith('.h5')]
 frameWiseModelSelection = dbc.InputGroup(
     [
@@ -79,7 +80,11 @@ pixelWiseModelSelection = dbc.InputGroup(
     ])
 
 modelSelection = html.Div([dbc.Row(html.H3('Model selection')),
-                           dbc.Row([dbc.Col(frameWiseModelSelection), dbc.Col(pixelWiseModelSelection)])])
+                           dbc.Row([dbc.Col(modelsBasePathInput),
+                                    dbc.Col(frameWiseModelSelection),
+                                    dbc.Col(pixelWiseModelSelection),
+                                    dbc.Button(id='button-load-models', children='Load models')]),
+                           html.Div(id='model-selection-output')])
 
 ##################
 # frame navigation buttons
@@ -114,11 +119,8 @@ app.layout = dbc.Container(style={'margin': 'auto', 'font-family': 'Verdana'},
                                html.Hr(),
                                modelSelection,
 
-                               html.H4(children='image selector'),
+                               html.H4(children='Frame selector'),
 
-                               dcc.Slider(id='slider', min=0, max=1000, step=1, value=0,
-                                   # marks={i: '{}'.format(i) for i in range(100)},
-                               ),
                                navigationButtons,
                                dcc.Graph(id='show-img'),
                                html.Div(id='show-coses'),
@@ -186,11 +188,19 @@ def image_base_path_selected (bPath):
     return [{"label": t, "value": t} for t in aux]
 
 
-@app.callback(Output('slider', 'max'), Output('input-frame-idx', 'max'),
+@app.callback(Output('pixel-wise-model', 'options'), Output('frame-wise-model', 'options'),
+              Input('models-base-path', 'value'))
+def image_base_path_selected (bPath):
+    aux = sorted([f for f in os.listdir(bPath) if f.endswith('.h5')])
+    ret = [{"label": t, "value": t} for t in aux]
+    return ret, ret
+
+
+@app.callback(Output('input-frame-idx', 'max'),
               Input('images-id-selector', 'value'), State('images-base-path', 'value'))
 def image_id_selected(imageId, bPath):
     GLOB_DICT['imageReader'] = ImageReader(imageId=imageId, datasetsPath=bPath)
-    return len(GLOB_DICT['imageReader'].get_images_names()), len(GLOB_DICT['imageReader'].get_images_names())
+    return len(GLOB_DICT['imageReader'].get_images_names())
 
 
 @app.callback(Output('show-img', 'figure'),
@@ -222,6 +232,16 @@ def previous_spark(nClicksLeft, nClicksRight, inputFrame):
         click = 'right'
         GLOB_DICT['nClicksRight'] = nClicksRight
     return inputFrame + (-1 if click=='left' else 1)
+
+
+@app.callback(Output('model-selection-output', 'children'),
+              Input('button-load-models', 'n_clicks'),
+              State('frame-wise-model', 'value'), State('pixel-wise-model', 'value'))
+def previous_spark(nClicksLoadModels, frameWiseModel, pixelWiseModel):
+    if frameWiseModel is None or pixelWiseModel is None:
+        return 'Select both frame-wise and pixel-wise models'
+
+    return f"Successfully loades models: frame-wise {frameWiseModel} and pixel-wise {pixelWiseModel}"
 
 if __name__ == "__main__":
    app.run_server()

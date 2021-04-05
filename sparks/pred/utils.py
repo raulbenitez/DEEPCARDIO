@@ -20,7 +20,7 @@ PIXELWISE_PREDS_FILE = 'pixelwise_class.npy'
 
 
 class BasePredictor(ABC):
-    def __init__(self, imageId=None, datasetsPath=None, model=None, gaussian=False) -> None:
+    def __init__(self, imageId=None, datasetsPath=None, model=None, gaussian=False, rollingSize=0) -> None:
         if not os.path.exists(PREDS_BASE_PATH):
             os.makedirs(PREDS_BASE_PATH)
         if not model:
@@ -28,9 +28,10 @@ class BasePredictor(ABC):
             model = args[args.index('--model')+1] if '--model' in args else DEFAULT_MODEL
 
         self._datasetsPath = datasetsPath
-        self._imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath)
+        self._imageReader = ImageReader(imageId=imageId, datasetsPath=datasetsPath, rollingSize=rollingSize)
         self._modelPath = model
         self._useGaussian = gaussian # wheather to use gaussian filter for images or not
+        self._rollingSize = rollingSize
 
         self._X = self._Y = self._model = None
 
