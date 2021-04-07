@@ -28,7 +28,52 @@ if __name__=='__main__':
     imageReader = framePredictor.get_image_reader()
     Y_pred = framePredictor.predict()
 
-    get_clustered_pred_sparks(framePredictor, pixelPredictor)
+    images = imageReader.get_full_images()
+
+    # plot occurrence heatmap
+    sparksDFAsList, sparkPredMasksL = get_clustered_pred_sparks(framePredictor, pixelPredictor)
+    sparkPredMasks = np.array(sparkPredMasksL)
+    rawOccurrenceHeatmap = sparkPredMasks.astype('float').sum(axis=0)
+    occurrenceHeatmap = (rawOccurrenceHeatmap / rawOccurrenceHeatmap.max() * 255).astype('uint8')
+    plt.figure(figsize=(20, 5))
+    plt.imshow(occurrenceHeatmap, cmap='jet')
+    plt.axis('off')
+    plt.show()
+
+    # plot intensity heatmap
+    fullSparksOccurrenceMask = rawOccurrenceHeatmap.astype(bool)
+    fullPixelsSum = imageReader.get_full_images()[:, :, :, 2].sum(axis=0)
+    rawIntensityHeatmap = np.where(fullSparksOccurrenceMask, fullPixelsSum, 0).astype('float')
+    intensityHeatmap = (rawIntensityHeatmap / rawIntensityHeatmap.max() * 255).astype('uint8')
+    plt.figure(figsize=(20, 5))
+    plt.imshow(intensityHeatmap, cmap='jet')
+    plt.axis('off')
+    plt.show()
+
+    m = sparkPredMasksL[0]
+    ints = []
+    for ii in range(45, 60):
+        ints.append(images[ii][:, :, 2][m].mean())
+    plt.figure(figsize=(20, 5))
+    plt.plot(ints)
+    plt.show()
+
+    # plot spark images
+    images = imageReader.get_full_images()
+    classes = imageReader.get_frame_wise_class_gmm()
+    idx = np.random.choice(np.arange(classes.shape[0])[classes == 1], 1)[0]
+    plot_cell(images[idx])
+
+    ir1 = ImageReader(imageId='2021-01-23_02-02-14_gen_images')
+    ir2 = ImageReader(imageId='2021-03-24_00-35-00_TLeif__synthetic')
+
+    images1 = ir1.get_full_images()
+    plot_cell(images1[40])
+    plot_cell(cv2.resize(images1[40], (images1.shape[2], 75)))
+
+    images2 = ir2.get_full_images()
+    plot_cell(images2[1])
+    plot_cell(cv2.resize(images2[1], (images1.shape[2], images1.shape[1])))
 
     # classes = imageReader.get_frame_wise_class_gmm()
     # pixelClass = imageReader.get_pixel_wise_classification()
