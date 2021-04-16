@@ -261,7 +261,7 @@ def get_clustered_pred_sparks(framePredictor: FrameWisePredictor, pixelPredictor
         for l in np.unique(labels):
             currentSparkMaskIndices = aux[labels==l]
             p = np.zeros(predPixels.shape).astype(bool)
-            p[[*currentSparkMaskIndices.T]] = True
+            p[tuple([*currentSparkMaskIndices.T])] = True
 
             centroid = pixelPredictor.get_spark_centroid_from_pred(p)
 
@@ -269,7 +269,9 @@ def get_clustered_pred_sparks(framePredictor: FrameWisePredictor, pixelPredictor
             for sIdx, sp in enumerate(sparksDFAsList):
                 if i-sp[3] > MAX_BLANK_FRAMES:
                     continue
-                if not sparkPredMasks[sIdx][centroid]:
+                auxCentr = pixelPredictor.get_spark_centroid_from_pred(sparkPredMasks[sIdx])
+                auxMask = get_mask(*sparkPredMasks[sIdx].shape[:2], auxCentr[1], auxCentr[0])
+                if not auxMask[centroid]:
                     continue
                 sparkIdx = sIdx
                 sparkPredMasks[sIdx] |= p
@@ -283,6 +285,17 @@ def get_clustered_pred_sparks(framePredictor: FrameWisePredictor, pixelPredictor
                 sparkPredMasks.append(p)
 
     return sparksDFAsList, sparkPredMasks
+
+
+def get_intensity_heatmap(sparkPredMasksL, imageReader):
+    sparkPredMasks = np.array(sparkPredMasksL)
+    rawOccurrenceHeatmap = sparkPredMasks.astype('float').sum(axis=0)
+    fullSparksOccurrenceMask = rawOccurrenceHeatmap.astype(bool)
+    fullPixelsSum = imageReader.get_full_images()[:, :, :, 2].sum(axis=0)
+    rawIntensityHeatmap = np.where(fullSparksOccurrenceMask, fullPixelsSum, 0).astype('float')
+    intensityHeatmap = (rawIntensityHeatmap / rawIntensityHeatmap.max() * 255).astype('uint8')
+
+    return intensityHeatmap
 
 
 if __name__=='__main__':

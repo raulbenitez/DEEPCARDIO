@@ -4,7 +4,9 @@
 import base64
 import io
 import os
+import time
 
+import dash_table
 import pandas as pd
 import numpy as np
 import math
@@ -25,7 +27,7 @@ from dash.dependencies import Input, Output, State
 import plotly.express as px
 
 from deepcardio_utils import ImageReader, get_plottable_image
-from pred.utils import FrameWisePredictor, PixelWisePredictor
+from pred.utils import FrameWisePredictor, PixelWisePredictor, get_clustered_pred_sparks, get_intensity_heatmap
 
 GLOB_IMG_READER = ImageReader('170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium')
 GLOB_DICT = {}
@@ -84,7 +86,7 @@ modelSelection = html.Div([dbc.Row(html.H3('Model selection')),
                            dbc.Row([dbc.Col(modelsBasePathInput),
                                     dbc.Col(frameWiseModelSelection),
                                     dbc.Col(pixelWiseModelSelection),
-                                    dbc.Col(dbc.Button(id='button-load-models', children='Load models'), md=1)]),
+                                    dbc.Col(dbc.Button(id='button-load-models', children='Load models'), md=1.5)]),
                            html.Div(id='model-selection-output')])
 
 ##################
@@ -107,27 +109,26 @@ navigationButtons = html.Div(dbc.Row([
 ##################
 
 # We apply basic HTML formatting to the layout
-app.layout = dbc.Container(style={'margin': 'auto', 'font-family': 'Verdana'},
-                           fluid=True,
-
+app.layout = dbc.Container(style={'margin': 'auto', 'font-family': 'Verdana'}, fluid=True,
                            children=[
-
-                               # DEEPCARDIO
                                html.H1(children="DEEPCARDIO"),
                                html.Hr(),
 
                                imagesFilePath,
                                html.Hr(),
+
                                modelSelection,
 
-                               html.H4(children='Frame selector'),
+                               dbc.InputGroup([
+                                   dbc.InputGroupAddon("Spark selector", addon_type="prepend"),
+                                   dbc.Select(id="spark-selector-dropdown", options=[{"label": t, "value": t} for t in []], value=None)
+                               ]),
+                               html.Div(id='heatmap-div'),
 
+                               html.H4(children='Frame selector'),
                                navigationButtons,
                                dcc.Graph(id='show-img'),
                                html.Div(id='show-coses'),
-
-
-
                                dcc.Upload(
                                    id='upload-image',
                                    children=html.Div(['Drag and Drop or ', html.A('Select Files')]),
@@ -142,9 +143,15 @@ app.layout = dbc.Container(style={'margin': 'auto', 'font-family': 'Verdana'},
                                        'margin': '10px'
                                    },
                                    # Allow multiple files to be uploaded
-                                   multiple=True
+                               multiple=True
                                ),
-                               html.Div(id='show-img2')
+                               html.Div(id='show-img2'),
+                               dcc.Loading(
+                                   id="loading-1",
+                                   type="default",
+                                   children=html.Div(id="loading-output-1"),
+                                   fullscreen=True
+                               )
                            ])
 
 
@@ -235,20 +242,67 @@ def previous_spark(nClicksLeft, nClicksRight, inputFrame):
     return inputFrame + (-1 if click=='left' else 1)
 
 
-@app.callback(Output('model-selection-output', 'children'),
+@app.callback(Output('model-selection-output', 'children'), Output('spark-selector-dropdown', 'options'),
+              Output('loading-1', 'children'),
               Input('button-load-models', 'n_clicks'),
               State('frame-wise-model', 'value'), State('pixel-wise-model', 'value'), State('models-base-path', 'value'))
-def previous_spark(nClicksLoadModels, frameWiseModel, pixelWiseModel, modelsBasePath):
+def load_model(nClicksLoadModels, frameWiseModel, pixelWiseModel, modelsBasePath):
     if frameWiseModel is None or pixelWiseModel is None:
-        return 'Select both frame-wise and pixel-wise models'
+        return 'Select both frame-wise and pixel-wise models', []
 
     imageReader = GLOB_DICT['imageReader']
-    framePredictor = FrameWisePredictor(imageId=imageReader.get_image_id(),
+    GLOB_DICT['framePredictor'] = framePredictor = FrameWisePredictor(imageId=imageReader.get_image_id(),
                                         model=os.path.join(modelsBasePath, frameWiseModel))
-    pixelPredictor = PixelWisePredictor(imageId=imageReader.get_image_id(),
+    GLOB_DICT['pixelPredictor'] = pixelPredictor = PixelWisePredictor(imageId=imageReader.get_image_id(),
                                         model=os.path.join(modelsBasePath, pixelWiseModel))
 
-    return f"Successfully loades models: frame-wise {frameWiseModel} and pixel-wise {pixelWiseModel}"
+    sparksDFAsList, sparkPredMasksL = get_clustered_pred_sparks(framePredictor, pixelPredictor)
+    GLOB_DICT['sparksDFAsList'], GLOB_DICT['sparkPredMasksL'] = sparksDFAsList, sparkPredMasksL
+
+    retList = ['all'] + [f"Spark{i}" for i in range(len(sparksDFAsList))]
+
+    return f"Successfully loades models: frame-wise {frameWiseModel} and pixel-wise {pixelWiseModel}", \
+           [{'label': e, 'value': e} for e in retList], ""
+
+
+@app.callback(
+    Output('heatmap-div', 'children'),
+    Input('spark-selector-dropdown', 'value')
+)
+def plot_heatmap(sparkSelected):
+    if sparkSelected is None or not 'sparkPredMasksL' in GLOB_DICT:
+        return
+
+    imageReader = GLOB_DICT['imageReader']
+    sparksPredMasksL = GLOB_DICT['sparkPredMasksL']
+    sparksDFAsList = GLOB_DICT['sparksDFAsList']
+
+    if sparkSelected == 'all':
+        intensityHeatmap = get_intensity_heatmap(sparksPredMasksL, imageReader)
+        fig = px.imshow(intensityHeatmap)
+        fig.update_xaxes(showticklabels=False)
+        fig.update_yaxes(showticklabels=False)
+        return dcc.Graph(figure=fig)
+
+    sparkIdx = int(sparkSelected.replace('Spark', ''))
+    intensityHeatmap = get_intensity_heatmap([GLOB_DICT['sparkPredMasksL'][sparkIdx]], GLOB_DICT['imageReader'])
+    fig = px.imshow(intensityHeatmap)
+    fig.update_xaxes(showticklabels=False)
+    fig.update_yaxes(showticklabels=False)
+    g = dcc.Graph(figure=fig)
+
+    images = imageReader.get_full_images()
+    sIni, sFin = sparksDFAsList[sparkIdx][2:]
+    sIni = max(sIni-10, 0)
+    sFin = min(sFin+10, len(images)-1)
+    _masks = np.array([sparksPredMasksL[sparkIdx]]*(sFin-sIni+1))
+
+    trace = (images[sIni:sFin+1, :, :, 2]*_masks).mean(axis=(1, 2))
+    fig2 = px.line(trace)
+    g2 = dcc.Graph(figure=fig2)
+
+    return [g, g2]
+
 
 if __name__ == "__main__":
-   app.run_server()
+   app.run_server(threaded=False)
