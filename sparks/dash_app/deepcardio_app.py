@@ -229,26 +229,33 @@ def frame_idx_selected(inputValue, nClicksLeft, nClicksRight):
 
 @app.callback(Output('input-frame-idx', 'value'),
               Input('spark-left-frame', 'n_clicks'), Input('spark-right-frame', 'n_clicks'),
+              Input('trace-plot', 'hoverData'),
               State('input-frame-idx', 'value'))
-def previous_spark(nClicksLeft, nClicksRight, inputFrame):
+def previous_spark(nClicksLeft, nClicksRight, hov, inputFrame):
     if not 'nClicksLeft' in GLOB_DICT:
         return inputFrame
+    ret = inputFrame
     if nClicksLeft > GLOB_DICT['nClicksLeft']:
         click = 'left'
         GLOB_DICT['nClicksLeft'] = nClicksLeft
-    else:
+        ret -= 1
+    elif nClicksRight > GLOB_DICT['nClicksRight']:
         click = 'right'
         GLOB_DICT['nClicksRight'] = nClicksRight
-    return inputFrame + (-1 if click=='left' else 1)
+        ret += 1
+    elif hov is not None:
+        firstP = hov['points'][0]
+        ret = firstP.get('x', inputFrame)
+    return ret
 
 
 @app.callback(Output('model-selection-output', 'children'), Output('spark-selector-dropdown', 'options'),
-              Output('loading-1', 'children'),
+              Output('loading-1', 'children'), Output('spark-selector-dropdown', 'value'),
               Input('button-load-models', 'n_clicks'),
               State('frame-wise-model', 'value'), State('pixel-wise-model', 'value'), State('models-base-path', 'value'))
 def load_model(nClicksLoadModels, frameWiseModel, pixelWiseModel, modelsBasePath):
     if frameWiseModel is None or pixelWiseModel is None:
-        return 'Select both frame-wise and pixel-wise models', []
+        return 'Select both frame-wise and pixel-wise models', [], None, None
 
     imageReader = GLOB_DICT['imageReader']
     GLOB_DICT['framePredictor'] = framePredictor = FrameWisePredictor(imageId=imageReader.get_image_id(),
@@ -262,7 +269,7 @@ def load_model(nClicksLoadModels, frameWiseModel, pixelWiseModel, modelsBasePath
     retList = ['all'] + [f"Spark{i}" for i in range(len(sparksDFAsList))]
 
     return f"Successfully loades models: frame-wise {frameWiseModel} and pixel-wise {pixelWiseModel}", \
-           [{'label': e, 'value': e} for e in retList], ""
+           [{'label': e, 'value': e} for e in retList], "", "all"
 
 
 @app.callback(
@@ -298,8 +305,8 @@ def plot_heatmap(sparkSelected):
     _masks = np.array([sparksPredMasksL[sparkIdx]]*(sFin-sIni+1))
 
     trace = (images[sIni:sFin+1, :, :, 2]*_masks).mean(axis=(1, 2))
-    fig2 = px.line(trace)
-    g2 = dcc.Graph(figure=fig2)
+    fig2 = px.line(x=range(sIni, sFin+1), y=trace, labels={'frame': range(sIni, sFin+1), 'lum': trace})
+    g2 = dcc.Graph(figure=fig2, id='trace-plot')
 
     return [g, g2]
 
