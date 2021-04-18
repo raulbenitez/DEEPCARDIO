@@ -35,18 +35,86 @@ GLOB_DICT = {}
 
 ###############################################################################
 
-app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP, "assets/custom-style.css"])
 
-# The page structure will be:
-#    Features Importance Chart
-#    <H4> Feature #1 name
-#    Slider to update Feature #1 value
-#    <H4> Feature #2 name
-#    Slider to update Feature #2 value
-#    <H4> Feature #3 name
-#    Slider to update Feature #3 value
-#    <H2> Updated Prediction
-#    Callback fuction with Sliders values as inputs and Prediction as Output
+
+# Modal
+with open("dash_app/deepcardioapp.md", "r") as f:
+    howto_md = f.read()
+
+modal_overlay = dbc.Modal(
+    [
+        dbc.ModalBody(html.Div([dcc.Markdown(howto_md)], id="howto-md")),
+        dbc.ModalFooter(dbc.Button("Close", id="howto-close", className="howto-bn")),
+    ],
+    id="modal",
+    size="lg",
+)
+
+
+button_howto = dbc.Button(
+    "Learn more",
+    id="howto-open",
+    outline=True,
+    color="info",
+    # Turn off lowercase transformation for class .button in stylesheet
+    style={"textTransform": "none"},
+)
+
+button_github = dbc.Button(
+    "View Code on github",
+    outline=True,
+    color="primary",
+    href="https://github.com/plotly/dash-sample-apps/tree/master/apps/dash-image-segmentation",
+    id="gh-link",
+    style={"text-transform": "none"},
+)
+
+
+########
+# Header
+header = dbc.Navbar(
+    dbc.Container(
+        [
+            dbc.Row(
+                [
+                    dbc.Col(html.Img(id="logo", src=app.get_asset_url("dash-logo-new.png"), height="30px"), md="auto"),
+                    dbc.Col(
+                        [html.Div([html.H3("DEEPCARDIO"), html.P("Deep learning for calcium imaging on heart cells")], id="app-title")],
+                        md=True,
+                        align="center",
+                    ),
+                ], align="center"
+            ),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            dbc.NavbarToggler(id="navbar-toggler"),
+                            dbc.Collapse(
+                                dbc.Nav(
+                                    [
+                                        dbc.NavItem(button_howto),
+                                        dbc.NavItem(button_github),
+                                    ],
+                                    navbar=True,
+                                ),
+                                id="navbar-collapse",
+                                navbar=True,
+                            ),
+                            modal_overlay,
+                        ],
+                        md=2,
+                    ),
+                ],
+                align="center",
+            ),
+        ], fluid=True,
+    ),
+    dark=True,
+    color="dark",
+    sticky="top",
+)
 
 
 # images path
@@ -109,84 +177,46 @@ navigationButtons = html.Div(dbc.Row([
 ##################
 
 # We apply basic HTML formatting to the layout
-app.layout = dbc.Container(style={'margin': 'auto', 'font-family': 'Verdana'}, fluid=True,
-                           children=[
-                               html.H1(children="DEEPCARDIO"),
-                               html.Hr(),
+app.layout = html.Div([
+    header,
+    dbc.Container(style={'margin': 'auto', 'font-family': 'Verdana'}, fluid=True,
+           children=[
+               imagesFilePath,
+               html.Hr(),
 
-                               imagesFilePath,
-                               html.Hr(),
+               modelSelection,
 
-                               modelSelection,
+               dbc.InputGroup([
+                   dbc.InputGroupAddon("Spark selector", addon_type="prepend"),
+                   dbc.Select(id="spark-selector-dropdown", options=[{"label": t, "value": t} for t in []], value=None)
+               ]),
+               html.Div(id='heatmap-div'),
 
-                               dbc.InputGroup([
-                                   dbc.InputGroupAddon("Spark selector", addon_type="prepend"),
-                                   dbc.Select(id="spark-selector-dropdown", options=[{"label": t, "value": t} for t in []], value=None)
-                               ]),
-                               html.Div(id='heatmap-div'),
-
-                               html.H4(children='Frame selector'),
-                               navigationButtons,
-                               dcc.Graph(id='show-img'),
-                               html.Div(id='show-coses'),
-                               dcc.Upload(
-                                   id='upload-image',
-                                   children=html.Div(['Drag and Drop or ', html.A('Select Files')]),
-                                   style={
-                                       'width': '100%',
-                                       'height': '60px',
-                                       'lineHeight': '60px',
-                                       'borderWidth': '1px',
-                                       'borderStyle': 'dashed',
-                                       'borderRadius': '5px',
-                                       'textAlign': 'center',
-                                       'margin': '10px'
-                                   },
-                                   # Allow multiple files to be uploaded
-                               multiple=True
-                               ),
-                               html.Div(id='show-img2'),
-                               dcc.Loading(
-                                   id="loading-1",
-                                   type="default",
-                                   children=html.Div(id="loading-output-1"),
-                                   fullscreen=True
-                               )
-                           ])
-
-
-def parse_contents(contents, filename, date):
-    content_type, content_string = contents.split(',')
-    decoded = base64.b64decode(content_string)
-    im = np.asarray(Image.open(io.BytesIO(decoded)))[:, :, :3]
-    fig = px.imshow(im)
-    # return dcc.Graph(fig)
-
-    return html.Div([
-        html.H5(filename),
-
-        # HTML images accept base64 encoded strings in the same format
-        # that is supplied by the upload
-        html.Img(src=contents),
-        html.Hr(),
-        html.Div('Raw Content'),
-        html.Pre(contents[:200] + '...', style={
-            'whiteSpace': 'pre-wrap',
-            'wordBreak': 'break-all'
-        })
+               html.H4(children='Frame selector'),
+               navigationButtons,
+               dcc.Graph(id='show-img'),
+               html.Div(id='show-img2'),
+               dcc.Loading(
+                   id="loading-1",
+                   type="default",
+                   children=html.Div(id="loading-output-1"),
+                   fullscreen=True
+               )
+           ])
     ])
 
 
-@app.callback(Output('show-img2', 'children'),
-              Input('upload-image', 'contents'),
-              State('upload-image', 'filename'),
-              State('upload-image', 'last_modified'))
-def update_output(list_of_contents, list_of_names, list_of_dates):
-    if list_of_contents is not None:
-        children = [
-            parse_contents(c, n, d) for c, n, d in
-            zip(list_of_contents, list_of_names, list_of_dates)]
-        return children
+
+# Callback for modal popup
+@app.callback(
+    Output("modal", "is_open"),
+    [Input("howto-open", "n_clicks"), Input("howto-close", "n_clicks")],
+    [State("modal", "is_open")],
+)
+def toggle_modal(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open
 
 
 @app.callback(Output('images-id-selector', 'options'),
