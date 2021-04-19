@@ -11,3 +11,18 @@
 #gh-link {
     white-space: nowrap;
 }
+
+.card {
+    margin: 1em 0 1em 0;
+    min-width: auto;
+}
+
+.input-group-text {
+    width: 100%;
+    overflow: hidden;
+}
+
+.input-group-prepend {
+    margin-right: -1px;
+    width: 25%;
+}

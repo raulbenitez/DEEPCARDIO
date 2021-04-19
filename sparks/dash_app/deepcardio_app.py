@@ -119,7 +119,10 @@ header = dbc.Navbar(
 
 # images path
 
-imagesBasePathInput = dbc.Input(id='images-base-path', placeholder='Images base path', value='../_datasets/deepcardio')
+imagesBasePathInput = dbc.InputGroup([
+    dbc.InputGroupAddon("Base path", addon_type="prepend"),
+    dbc.Input(id='images-base-path', placeholder='Images base path', value='../_datasets/deepcardio')
+    ])
 
 baseImagePath = '../_datasets/deepcardio'
 imagesIdsList = sorted([d for d in os.listdir(baseImagePath) if os.path.isdir(os.path.join(baseImagePath, d))])
@@ -130,13 +133,22 @@ imagesSelector = dbc.InputGroup(
                    value='170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium')
     ])
 
-imagesFilePath = html.Div([dbc.Row(html.H3('Images path')),
-                           dbc.Row([dbc.Col(imagesBasePathInput), dbc.Col(imagesSelector)])])
+imagesFilePathCard = dbc.Col([
+    dbc.Card(id='image-path-card', children=[
+        dbc.CardHeader("Images path"),
+        dbc.CardBody([dbc.Row(imagesBasePathInput), dbc.Row(imagesSelector)])
+    ])
+], md=6)
 
 #################
 # model selection
 
-modelsBasePathInput = dbc.Input(id='models-base-path', placeholder='Models base path', value='pred/')
+modelsBasePathInput = dbc.InputGroup(
+    [
+        dbc.InputGroupAddon('Base path', addon_type='prepend'),
+        dbc.Input(id='models-base-path', placeholder='Models base path', value='pred/')
+    ])
+
 trainedModels = [f for f in os.listdir('pred/') if f.endswith('.h5')]
 frameWiseModelSelection = dbc.InputGroup(
     [
@@ -146,7 +158,7 @@ frameWiseModelSelection = dbc.InputGroup(
 
 pixelWiseModelSelection = dbc.InputGroup(
     [
-        dbc.InputGroupAddon("Pixel-Wise model", addon_type="prepend"),
+        dbc.InputGroupAddon("Pixel-Wise  model", addon_type="prepend"),
         dbc.Select(id="pixel-wise-model", options=[{"label": t, "value": t} for t in trainedModels], value=None)
     ])
 
@@ -157,21 +169,33 @@ modelSelection = html.Div([dbc.Row(html.H3('Model selection')),
                                     dbc.Col(dbc.Button(id='button-load-models', children='Load models'), md=1.5)]),
                            html.Div(id='model-selection-output')])
 
+modelSelectionCard = dbc.Col([
+    dbc.Card(id='model-selection-card', children=[
+        dbc.CardHeader("Model selection"),
+        dbc.CardBody([dbc.Row(modelsBasePathInput),
+                      dbc.Row(frameWiseModelSelection),
+                      dbc.Row(pixelWiseModelSelection)])
+    ])
+], md=6)
+
+#################
+# load model button and spark selector
+
+loadModelsButtAndSparkSel = dbc.InputGroup([
+    dbc.Button(id='button-load-models', children='Load models'),
+    dbc.InputGroupAddon("Spark selector", addon_type="prepend"),
+    dbc.Select(id="spark-selector-dropdown", options=[{"label": t, "value": t} for t in []], value=None)
+])
+
 ##################
 # frame navigation buttons
 
 navigationButtons = html.Div(dbc.Row([
     dbc.Col(dbc.Input(id='input-frame-idx', type='number', value=0, min=0), md=1),
-    dbc.Col([dbc.Row(html.Div(children='Frame nav')),
-             dbc.Row([
-                 dbc.Button(id='button-left-frame', children='<', className='mr-1'),
-                 dbc.Button(id='button-right-frame', children='>', className='mr-1')
-             ])]),
-    dbc.Col([dbc.Row(html.Div(children='Spark nav')),
-             dbc.Row([
-                 dbc.Button(id='spark-left-frame', n_clicks=0, color='info', children='<', className='mr-1'),
-                 dbc.Button(id='spark-right-frame', n_clicks=0, color='info', children='>', className='mr-1')
-             ])])
+    dbc.Col([
+             dbc.Button(id='spark-left-frame', n_clicks=0, color='info', children='<', className='mr-1'),
+             dbc.Button(id='spark-right-frame', n_clicks=0, color='info', children='>', className='mr-1')
+             ])
 ]))
 
 ##################
@@ -181,15 +205,9 @@ app.layout = html.Div([
     header,
     dbc.Container(style={'margin': 'auto', 'font-family': 'Verdana'}, fluid=True,
            children=[
-               imagesFilePath,
-               html.Hr(),
+               dbc.Row([imagesFilePathCard, modelSelectionCard]),
 
-               modelSelection,
-
-               dbc.InputGroup([
-                   dbc.InputGroupAddon("Spark selector", addon_type="prepend"),
-                   dbc.Select(id="spark-selector-dropdown", options=[{"label": t, "value": t} for t in []], value=None)
-               ]),
+               loadModelsButtAndSparkSel,
                html.Div(id='heatmap-div'),
 
                html.H4(children='Frame selector'),
@@ -251,7 +269,7 @@ def frame_idx_selected(inputValue, nClicksLeft, nClicksRight):
     imageReader = GLOB_DICT.get('imageReader')
     images = imageReader.get_full_images()
     img = get_plottable_image(images[inputValue])
-    fig = px.imshow(img, title=f"idx {inputValue}")
+    fig = px.imshow(img)
     fig.update_xaxes(showticklabels=False)
     fig.update_yaxes(showticklabels=False)
     return fig
@@ -279,13 +297,13 @@ def previous_spark(nClicksLeft, nClicksRight, hov, inputFrame):
     return ret
 
 
-@app.callback(Output('model-selection-output', 'children'), Output('spark-selector-dropdown', 'options'),
+@app.callback(Output('spark-selector-dropdown', 'options'),
               Output('loading-1', 'children'), Output('spark-selector-dropdown', 'value'),
               Input('button-load-models', 'n_clicks'),
               State('frame-wise-model', 'value'), State('pixel-wise-model', 'value'), State('models-base-path', 'value'))
 def load_model(nClicksLoadModels, frameWiseModel, pixelWiseModel, modelsBasePath):
     if frameWiseModel is None or pixelWiseModel is None:
-        return 'Select both frame-wise and pixel-wise models', [], None, None
+        return [], None, None
 
     imageReader = GLOB_DICT['imageReader']
     GLOB_DICT['framePredictor'] = framePredictor = FrameWisePredictor(imageId=imageReader.get_image_id(),
@@ -298,8 +316,7 @@ def load_model(nClicksLoadModels, frameWiseModel, pixelWiseModel, modelsBasePath
 
     retList = ['all'] + [f"Spark{i}" for i in range(len(sparksDFAsList))]
 
-    return f"Successfully loades models: frame-wise {frameWiseModel} and pixel-wise {pixelWiseModel}", \
-           [{'label': e, 'value': e} for e in retList], "", "all"
+    return [{'label': e, 'value': e} for e in retList], "", "all"
 
 
 @app.callback(
@@ -326,7 +343,7 @@ def plot_heatmap(sparkSelected):
     fig = px.imshow(intensityHeatmap)
     fig.update_xaxes(showticklabels=False)
     fig.update_yaxes(showticklabels=False)
-    g = dcc.Graph(figure=fig)
+    g = dcc.Graph(figure=fig, style={'height': '350px'})
 
     images = imageReader.get_full_images()
     sIni, sFin = sparksDFAsList[sparkIdx][2:]
@@ -336,7 +353,9 @@ def plot_heatmap(sparkSelected):
 
     trace = (images[sIni:sFin+1, :, :, 2]*_masks).mean(axis=(1, 2))
     fig2 = px.line(x=range(sIni, sFin+1), y=trace, labels={'frame': range(sIni, sFin+1), 'lum': trace})
-    g2 = dcc.Graph(figure=fig2, id='trace-plot')
+    fig2.update_traces(mode="markers+lines")
+    fig2.update_layout(hovermode="x unified")
+    g2 = dcc.Graph(figure=fig2, id='trace-plot', style={'height': '300px'})
 
     return [g, g2]
 
