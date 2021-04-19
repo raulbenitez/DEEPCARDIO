@@ -181,10 +181,12 @@ modelSelectionCard = dbc.Col([
 #################
 # load model button and spark selector
 
-loadModelsButtAndSparkSel = dbc.InputGroup([
-    dbc.Button(id='button-load-models', children='Load models'),
-    dbc.InputGroupAddon("Spark selector", addon_type="prepend"),
-    dbc.Select(id="spark-selector-dropdown", options=[{"label": t, "value": t} for t in []], value=None)
+loadModelsButtAndSparkSel = dbc.Row([
+    dbc.Col(dbc.Button(id='button-load-models', children='Load models'), md=2),
+    dbc.Col(dbc.InputGroup([
+        dbc.InputGroupAddon("Spark selector", addon_type="prepend"),
+        dbc.Select(id="spark-selector-dropdown", options=[{"label": t, "value": t} for t in []], value=None)
+    ]), md=6)
 ])
 
 ##################
