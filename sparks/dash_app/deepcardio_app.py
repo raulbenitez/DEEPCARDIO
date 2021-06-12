@@ -363,4 +363,7 @@ def plot_heatmap(sparkSelected):
 
 
 if __name__ == "__main__":
-   app.run_server(threaded=False)
+    host = os.getenv('DASH_HOST')
+    if host is None:
+        host = '127.0.0.1'
+    app.run_server(threaded=False, host=host)
