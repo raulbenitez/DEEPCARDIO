@@ -4,6 +4,7 @@ import sys
 
 import cv2
 import keras
+import tensorflow as tf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -119,7 +120,7 @@ class FrameWisePredictor(BasePredictor):
         self._X = self._X.astype('float32') / 255.
 
     def load_model(self):
-        self._model = keras.applications.InceptionV3(include_top=True, weights=None,
+        self._model = tf.keras.applications.InceptionV3(include_top=True, weights=None,
                                                      classes=2, input_shape=self._X[0].shape)
         self._model.load_weights(self._modelPath)
 
