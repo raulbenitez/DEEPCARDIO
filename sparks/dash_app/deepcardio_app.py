@@ -65,7 +65,8 @@ button_github = dbc.Button(
     "View Code on github",
     outline=True,
     color="primary",
-    href="https://github.com/plotly/dash-sample-apps/tree/master/apps/dash-image-segmentation",
+    # href="https://github.com/plotly/dash-sample-apps/tree/master/apps/dash-image-segmentation",
+    href="https://github.com/raulbenitez/DEEPCARDIO/tree/master/sparks",
     id="gh-link",
     style={"text-transform": "none"},
 )
