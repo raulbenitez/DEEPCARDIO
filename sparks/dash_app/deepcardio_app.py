@@ -311,8 +311,10 @@ def load_model(nClicksLoadModels, frameWiseModel, pixelWiseModel, modelsBasePath
     imageReader = GLOB_DICT['imageReader']
     GLOB_DICT['framePredictor'] = framePredictor = FrameWisePredictor(imageId=imageReader.get_image_id(),
                                         model=os.path.join(modelsBasePath, frameWiseModel))
+    framePredictor.predict()
     GLOB_DICT['pixelPredictor'] = pixelPredictor = PixelWisePredictor(imageId=imageReader.get_image_id(),
                                         model=os.path.join(modelsBasePath, pixelWiseModel))
+    pixelPredictor.predict()
 
     sparksDFAsList, sparkPredMasksL = get_clustered_pred_sparks(framePredictor, pixelPredictor)
     GLOB_DICT['sparksDFAsList'], GLOB_DICT['sparkPredMasksL'] = sparksDFAsList, sparkPredMasksL

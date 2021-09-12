@@ -24,6 +24,8 @@ def get_rolled_images_(images, rollsize=3):
 if __name__=='__main__':
     framePredictor = FrameWisePredictor(model='pred/i3_comp_2021-01-23_02-02-14_gen_images_ep10_b64_ler0.01_ite0.h5')
     pixelPredictor = PixelWisePredictor(model='pred/pixelWiseUNet.h5')
+    framePredictor.predict()
+    get_clustered_pred_sparks(framePredictor, pixelPredictor)
 
     imageReader = framePredictor.get_image_reader()
     Y_pred = framePredictor.predict()
