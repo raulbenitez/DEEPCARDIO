@@ -33,7 +33,8 @@ and pixel-wise models. There are also some useful scripts for generating movies 
 - `interpretability/` Script for the interpretability technique used.
 - `pred/` Directory dedicated to the prediction and performance testing. Its main file is `utils.py` which contains the 
 code for the class ``BasePredictor`` and the inheriting classes `FrameWisePredictor` and `PixelWisePredictor`.
-When the predictions are performed, a `predictions_db/` is created inside this folder for performance optimization.
+When the predictions are performed, a `predictions_db/` is created inside this folder for performance optimization. 
+This folder contains both frame-wise model object `frameWiseInceptionV3.h5` and pixel-wise model object `pixelWiseUNet.h5`.
 - `synthetic_data/` Script for the generation of synthetic data.
 - `train/` Folder dedicated to the training process itself, with multiple useful classes and functions. As well as the 
 training jupyters (which were executed on Google Colab).
@@ -41,13 +42,15 @@ training jupyters (which were executed on Google Colab).
 
 All code in this repository is built assuming a folder ```../_datasets/deepcardio``` relative to the root of the project. 
 This folder should contain the datasets on which to train / test. Note that for the dash app the idea is to mount this
-folder as a volume in the path `/opt/_datasets/deepcardio`, so that it will be in the appropiate relative path to the scripts.  
+folder as a volume in the path `/opt/_datasets/deepcardio`, so that it will be in the appropiate relative path to the scripts.
 These datasets should be structured in separate directories, following the structure:
 - The name of the directory defines the name of the dataset itself.
 - The folder of the dataset should directly contain the images of the experiment in the ch01 in format `.tif`.
 - Should the sparks be inventoried, they should be provided either in a `.mat` of `.csv` file with structure: 'x', 'y', 'tIni', 'tFin'.
 - The images should be named in a way that if they are ordered by name they should appear in chronological order.
 
+An example with synthetic images and the appropiate structure can be found at `_datasets/deepcardio/example_dataset`.
+This folder contains the images of the sequence as well as an example of sparks inventary `.csv` file.
 
 Finally, the file `deepcardio_utils.py` contains multiple functions and utils used in the other files. And both 
 `requirements.txt` and `docker_requirements.txt` define the full requirements of this project for being executed and the 
