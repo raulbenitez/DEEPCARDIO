@@ -3,7 +3,7 @@ This repository is built as a consequence of the development of the MSc thesis:
 <h4>DEEPCARDIO: Detection of calcium events in cardiac cells using deep learning in fluorescence microscopy images</h4>
 
 <!-- abstract -->
-The aim of this thesis is to apply deep learning techniques to calcium imaging sequences of cardiac myocytes for the detection of calcium events. 
+<p style="text-align: center">The aim of this thesis is to apply deep learning techniques to calcium imaging sequences of cardiac myocytes for the detection of calcium events. 
 For the scope of this thesis, the work is centered in the detection and localization of sparks, which are small spontaneous calcium events. 
 The experimental data is obtained by means of fluorescence microscopy.  
 There are two different models developed, first the frame-wise model which is a CNN with InceptionV3 architecture, which 
@@ -16,7 +16,7 @@ synthetic data is provided, so that the labeling of the data can be completely c
 The results obtained training the model with synthetic data and testing over real data are very satisfactory. 
 The conclusions are that deep learning is a good approach for this problem, however CNN are very sensitive to the typology of noise.  
 Both pixel-wise and frame-wise models obtained, have been encapsulated in a dash application. The objective of this
-application is to be very intuitive so that it can be used by experts in the field of cardiac physiology.
+application is to be very intuitive so that it can be used by experts in the field of cardiac physiology.</p>
 
 This repository gathers all code developed throughout the work of this thesis and its parts:
 - first data exploration
