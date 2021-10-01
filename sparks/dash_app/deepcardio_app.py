@@ -29,7 +29,7 @@ import plotly.express as px
 from deepcardio_utils import ImageReader, get_plottable_image
 from pred.utils import FrameWisePredictor, PixelWisePredictor, get_clustered_pred_sparks, get_intensity_heatmap
 
-GLOB_IMG_READER = ImageReader('170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium')
+GLOB_IMG_READER = ImageReader('example_dataset')
 GLOB_DICT = {}
 
 
@@ -131,7 +131,7 @@ imagesSelector = dbc.InputGroup(
     [
         dbc.InputGroupAddon("Images id", addon_type="prepend"),
         dbc.Select(id="images-id-selector", options=[{"label": t, "value": t} for t in imagesIdsList],
-                   value='170215_RyR-GFP30_RO_01_Serie2_SPARKS-calcium')
+                   value='example_dataset')
     ])
 
 imagesFilePathCard = dbc.Col([

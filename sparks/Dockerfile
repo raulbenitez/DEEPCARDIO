@@ -8,6 +8,7 @@ RUN apt-get update ##[edited]
 RUN apt-get install ffmpeg libsm6 libxext6  -y
 
 COPY . .
+COPY dash_app/example_dataset /opt/_datasets/deepcardio/example_dataset
 
 ENV PYTHONPATH "/opt/deepcardio"
 ENV DASH_HOST "0.0.0.0"
