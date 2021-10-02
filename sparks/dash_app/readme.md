@@ -1,6 +1,9 @@
 # Deepcardio dash app
 #### By Aleix Sacrest Gascon
 
+Official app documentation can be found [here](https://github.com/raulbenitez/DEEPCARDIO/blob/master/sparks/dash_app/readme.md) 
+and project documentation [here](https://github.com/raulbenitez/DEEPCARDIO/blob/master/sparks/readme.md).
+
 The application has been developed using the framework dash from plotly. The main idea is to encapsulate both frame-wise 
 and pixel-wise classifiers so that they can be used as a single system for classifying and segmenting sparks. The target 
 public of the application are experts in the field of cardiac physiology and biomedicine. The application allows to load 
