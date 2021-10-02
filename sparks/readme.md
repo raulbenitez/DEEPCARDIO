@@ -53,7 +53,7 @@ These datasets should be structured in separate directories, following the struc
 - Should the sparks be inventoried, they should be provided either in a `.mat` of `.csv` file with structure: `'x', 'y', 'tIni', 'tFin'`.
 - The images should be named in a way that if they are ordered by name they should appear in chronological order.
 
-An example with synthetic images and the appropiate structure can be found at [`_datasets/deepcardio/example_dataset`](_datasets/deepcardio/example_dataset).
+An example with synthetic images and the appropiate structure can be found at [`_datasets/deepcardio/example_dataset`](../_datasets/deepcardio/example_dataset).
 This folder contains the images of the sequence as well as an example of sparks inventary `.csv` file.
 
 ### Deepcardio dash app
