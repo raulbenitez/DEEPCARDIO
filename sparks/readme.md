@@ -39,19 +39,44 @@ This folder contains both frame-wise model object `frameWiseInceptionV3.h5` and 
 - `train/` Folder dedicated to the training process itself, with multiple useful classes and functions. As well as the 
 training jupyters (which were executed on Google Colab).
 
+Finally, the file `deepcardio_utils.py` contains multiple functions and utils used in the other files. And both 
+`requirements.txt` and `docker_requirements.txt` define the full requirements of this project for being executed and the 
+extra requirements needed for the `tensorflow/tensorflow` docker image to run the dash app, respectively.
 
-All code in this repository is built assuming a folder ```../_datasets/deepcardio``` relative to the root of the project. 
+<h3 id="h3-image-datasets">Image datasets</h3>
+All code in this repository is built assuming a folder ```../_datasets/deepcardio``` relative to the root of the project sparks. 
 This folder should contain the datasets on which to train / test. Note that for the dash app the idea is to mount this
 folder as a volume in the path `/opt/_datasets/deepcardio`, so that it will be in the appropiate relative path to the scripts.
 These datasets should be structured in separate directories, following the structure:
 - The name of the directory defines the name of the dataset itself.
-- The folder of the dataset should directly contain the images of the experiment in the ch01 in format `.tif`.
-- Should the sparks be inventoried, they should be provided either in a `.mat` of `.csv` file with structure: 'x', 'y', 'tIni', 'tFin'.
+- The folder of the dataset should directly contain the images of the experiment in the ch01 and format `.tif`.
+- Should the sparks be inventoried, they should be provided either in a `.mat` of `.csv` file with structure: `'x', 'y', 'tIni', 'tFin'`.
 - The images should be named in a way that if they are ordered by name they should appear in chronological order.
 
-An example with synthetic images and the appropiate structure can be found at `_datasets/deepcardio/example_dataset`.
+An example with synthetic images and the appropiate structure can be found at [`_datasets/deepcardio/example_dataset`](_datasets/deepcardio/example_dataset).
 This folder contains the images of the sequence as well as an example of sparks inventary `.csv` file.
 
-Finally, the file `deepcardio_utils.py` contains multiple functions and utils used in the other files. And both 
-`requirements.txt` and `docker_requirements.txt` define the full requirements of this project for being executed and the 
-extra requirements needed for the `tensorflow/tensorflow` docker image to run the dash app, respectively.   
+### Deepcardio dash app
+The classification systems developed have been encapsulated in a dash app so that they can be easily used. 
+The deepcardio dash app integrates both the frame-wise and the pixel-wise models, the objective is to provide an insightful 
+analysis for a given sequence of fluorescence microscopy images of a cardiac myocyte.
+
+The docker image is accessible at the Docker Hub repo [aleixsacrest/deepcardio-dashapp](https://hub.docker.com/repository/docker/aleixsacrest/deepcardio-dashapp)
+and it can directly be used with the `docker run` command. There are a couple of considerations to bear in mind when using 
+this docker image:
+- First that the port `8050` needs to be exposed from the insight since it is the one used by dash.
+- The computations performed by the dash app can become quite heavy. For this reason, it is possible that the app crashes
+when not enough memory is allocated. This might depend on the size of the dataset used, but it is recommended to provide
+around 4GB.
+- The datasets of images used within the app are thought to be accessed through a binded volume. This volume has to be 
+mounted to the `../_datasets/deepcardio` relative to the current folder (`DEEPCARDIO/sparks`) which in the docker image 
+will correspond to `/opt/_datasets/deepcardio`. More details about the composition of these datasets is provided in a [previous section](#h3-image-datasets).  
+
+Taking all this into account the docker image can be initiated with the following command, where `$path_to_datasets` is 
+the path in the local system to the datasets folder.  
+`docker run -dp 8050:8050 --memory 4g -v $path_to_datasets:/opt/_datasets --name deepcardio aleixsacrest/deepcardio-dashapp`  
+
+Alternatively, the docker image can be easily built using the [Dockerfile](Dockerfile). To build the image it is only needed 
+to clone the repository and execute the following command in the current folder `DEEPCARDIO/sparks`:  
+`docker build -t deepcardio-image .`  
+

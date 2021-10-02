@@ -39,7 +39,7 @@ app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP, "assets/custom-style
 
 
 # Modal
-with open("dash_app/deepcardioapp.md", "r") as f:
+with open("dash_app/readme.md", "r") as f:
     howto_md = f.read()
 
 modal_overlay = dbc.Modal(
