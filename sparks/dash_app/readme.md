@@ -12,7 +12,7 @@ the weight configuration for the neural networks (InceptionV3 and UNet). Finally
 loads the selected models in (2) and starts the classification (frame-wise) and segmentation (pixel-wise) of the selected 
 dataset in (1).  
 
-![](docu_img/dashapp-use1.png)
+![](docu_img/dashapp-use1.png)  
 **Figure 1** - Deepcardio dash app usage 1
 
 Once the classification is done, it will appear a heatmap showing the hotspots in terms of calcium activity in the cell. 
@@ -21,10 +21,10 @@ multiple sparks can appear in the same region. There is an example in Figure 2. 
 allows to select a specific spark for visualizing individually its calcium activity. There is an example of the heatmap 
 for a single spark in Figure 3.
 
-![](docu_img/dashapp-use2.png)
+![](docu_img/dashapp-use2.png)  
 **Figure 2** - Deepcardio dash app usage 2
 
-![](docu_img/dashapp-use3.png)
+![](docu_img/dashapp-use3.png)  
 **Figure 3** - Deepcardio dash app usage 3
 
 When a single spark is selected, it is also plotted its trace. The trace shows frame by frame the average intensity of 
@@ -32,5 +32,5 @@ the calcium in the affected region by the spark. The trace is visualized directl
 application. This is an interactive plot and when the plot is hovered, the corresponding frame is displayed live in a 
 picture below, as it is shown in Figure 4. It is also possible to navigate the frames with the blue arrows of the “Frame selector”.
 
-![](docu_img/dashapp-use4.png)
+![](docu_img/dashapp-use4.png)  
 **Figure 4** - Deepcardio dash app usage 4
