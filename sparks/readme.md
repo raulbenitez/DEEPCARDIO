@@ -44,7 +44,7 @@ Finally, the file `deepcardio_utils.py` contains multiple functions and utils us
 extra requirements needed for the `tensorflow/tensorflow` docker image to run the dash app, respectively.
 
 <h3 id="h3-image-datasets">Image datasets</h3>
-All code in this repository is built assuming a folder `../_datasets/deepcardio`     relative to the root of the project sparks. 
+All code in this repository is built assuming a folder `../_datasets/deepcardio` relative to the root of the project sparks. 
 This folder should contain the datasets on which to train / test. Note that for the dash app the idea is to mount this
 folder as a volume in the path `/opt/_datasets/deepcardio`, so that it will be in the appropiate relative path to the scripts.
 These datasets should be structured in separate directories, following the structure:
