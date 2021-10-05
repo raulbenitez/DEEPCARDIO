@@ -74,7 +74,7 @@ will correspond to `/opt/_datasets/deepcardio`. More details about the compositi
 
 Taking all this into account the docker image can be initiated with the following command, where `$path_to_datasets` is 
 the path in the local system to the datasets folder.  
-`docker run -dp 8050:8050 --memory 4g -v $path_to_datasets:/opt/_datasets --name deepcardio aleixsacrest/deepcardio-dashapp`  
+`docker run -dp 8050:8050 --memory 4g -v $path_to_datasets:/opt/_datasets/deepcardio --name deepcardio aleixsacrest/deepcardio-dashapp`  
 
 Alternatively, the docker image can be easily built using the [Dockerfile](Dockerfile). To build the image it is only needed 
 to clone the repository and execute the following command in the current folder `DEEPCARDIO/sparks`:  
